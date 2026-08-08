@@ -64,7 +64,7 @@ working detection and a crash loop on real hardware.
 
 | | |
 |---|---|
-| 🚗 **Multi-vehicle** | Register any number of cars by pairing their Bluetooth device. Only the active one is monitored. |
+| 🚗 **Multi-vehicle** | Register any number of cars by their paired Bluetooth device. Every registered car is monitored, and the disconnecting MAC address identifies which one just parked. |
 | 📍 **Automatic capture** | GPS fix taken at the moment of disconnect, with accuracy recorded. |
 | 🏠 **Address resolution** | Coordinates reverse-geocoded to a human-readable street address via the Google Geocoding API. |
 | 🗺️ **Live map** | Compose-native Google Maps view of the current parking spot, with a full-screen mode. |
