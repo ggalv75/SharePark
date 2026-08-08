@@ -1,0 +1,8 @@
+# Copy to local.properties and fill in your own values. local.properties is git-ignored.
+
+# Path to your Android SDK installation
+sdk.dir=C\:\\Android
+
+# Google Maps Platform key with "Maps SDK for Android" and "Geocoding API" enabled.
+# https://console.cloud.google.com/google/maps-apis/credentials
+MAPS_API_KEY=YOUR_API_KEY_HERE

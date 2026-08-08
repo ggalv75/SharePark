@@ -1,0 +1,56 @@
+name: Android CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Assemble debug
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # The Maps key is injected from repository secrets, never from the repo.
+      # Forks and PRs build without it: the app compiles, the map just renders blank.
+      - name: Write local.properties
+        env:
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+        run: echo "MAPS_API_KEY=$MAPS_API_KEY" > local.properties
+
+      - name: Assemble debug
+        run: ./gradlew assembleDebug --no-daemon
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject committed credentials
+        run: |
+          if git grep -nE "AIzaSy[0-9A-Za-z_-]{33}" -- . ':!.github' ':!.githooks'; then
+            echo "::error::A Google API key literal is committed to the repository."
+            exit 1
+          fi
+          if git ls-files | grep -qx "local.properties"; then
+            echo "::error::local.properties is tracked; it must stay git-ignored."
+            exit 1
+          fi
+          echo "No credentials found in tracked files."
