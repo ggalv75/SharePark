@@ -1,0 +1,47 @@
+# Normalise line endings so a Windows checkout can't break a Linux CI runner.
+# Everything git detects as text is stored LF in the repo; working-copy endings
+# follow the platform.
+* text=auto
+
+# Shell scripts MUST stay LF even on Windows — CRLF makes the kernel read the
+# shebang as "/bin/sh\r" and fail with "bad interpreter".
+*.sh            text eol=lf
+gradlew         text eol=lf
+
+# Windows scripts MUST stay CRLF — cmd.exe mis-parses LF-only batch files.
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+
+# Source and config — explicit so no heuristic has to guess.
+*.kt            text
+*.kts           text
+*.java          text
+*.xml           text
+*.pro           text
+*.properties    text
+*.toml          text
+*.md            text
+*.yml           text
+*.yaml          text
+*.json          text
+
+# Binary — never touch, never diff as text.
+*.jar           binary
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.webp          binary
+*.ico           binary
+*.ttf           binary
+*.otf           binary
+*.woff          binary
+*.woff2         binary
+*.keystore      binary
+*.jks           binary
+*.apk           binary
+*.aab           binary
+*.so            binary
+
+# Generated — collapse in PR diffs so reviews stay readable.
+gradle/wrapper/gradle-wrapper.jar linguist-vendored
