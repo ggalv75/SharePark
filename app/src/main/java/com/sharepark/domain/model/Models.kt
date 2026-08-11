@@ -46,6 +46,6 @@ data class AutomationZone(
     companion object {
         const val DEFAULT_RADIUS_METERS = 200
         const val MIN_RADIUS_METERS = 50
-        const val MAX_RADIUS_METERS = 2000
+        const val MAX_RADIUS_METERS = 500
     }
 }

@@ -90,7 +90,12 @@ class AutomationZonesViewModel @Inject constructor(
             address = zone.address,
             latitude = zone.latitude,
             longitude = zone.longitude,
-            radiusMeters = zone.radiusMeters,
+            // A zone saved under a wider limit would otherwise show a number the slider can't
+            // reach, so the editor would display one radius and save another.
+            radiusMeters = zone.radiusMeters.coerceIn(
+                AutomationZone.MIN_RADIUS_METERS,
+                AutomationZone.MAX_RADIUS_METERS
+            ),
             isEnabled = zone.isEnabled,
             createdAt = zone.createdAt
         )

@@ -830,10 +830,9 @@ private fun boundsAround(latitude: Double, longitude: Double, radiusMeters: Int)
 /** Fallback framing for the moments before the map reports its size. */
 private fun zoomForRadius(radiusMeters: Int): Float = when {
     radiusMeters <= 100 -> 16f
+    radiusMeters <= 200 -> 15.5f
     radiusMeters <= 300 -> 15f
-    radiusMeters <= 700 -> 14f
-    radiusMeters <= 1500 -> 13f
-    else -> 12f
+    else -> 14.5f
 }
 
 private const val METERS_PER_DEGREE_LAT = 111_320.0
