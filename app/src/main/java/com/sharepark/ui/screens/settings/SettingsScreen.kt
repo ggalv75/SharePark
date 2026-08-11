@@ -330,7 +330,7 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "שליחת מיקום החנייה אוטומטית לאיש קשר או קבוצה — בלי אף לחיצה",
+                            text = "שליחת מיקום החנייה אוטומטית לאיש קשר מורשה — בלי אף לחיצה",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )

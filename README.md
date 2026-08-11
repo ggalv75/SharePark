@@ -69,7 +69,7 @@ working detection and a crash loop on real hardware.
 | 🏠 **Address resolution** | Coordinates reverse-geocoded to a human-readable street address via the Google Geocoding API. |
 | 🗺️ **Live map** | Compose-native Google Maps view of the current parking spot, with a full-screen mode. |
 | 📜 **History** | Every parking event kept for 30 days, then pruned automatically by a WorkManager job. |
-| 💬 **WhatsApp automation** | Per-vehicle rules — each car can target a different contact or group chat. |
+| 💬 **WhatsApp automation** | Per-vehicle rules — each car can message a different trusted contact. |
 | 🎯 **Automation zones** | Mark addresses on the map with a radius each; the automated message only fires for parkings inside one of them. |
 | 🔒 **Deferred send** | If the phone is locked when you park, the message is queued and sent the moment you unlock. |
 | 👥 **Trusted contacts** | Saved recipients for quick manual sharing. |
@@ -78,22 +78,18 @@ working detection and a crash loop on real hardware.
 
 ## WhatsApp automation
 
-Two modes, configured per vehicle:
+Each vehicle points at one trusted contact. A parking builds a `wa.me` deep link with the
+message pre-filled, which opens that contact's chat directly, and an `AccessibilityService`
+presses send. Android requires the user to enable that service by hand under
+**Settings → Accessibility**, and that explicit grant *is* the permission model for the
+feature. The service is scoped to WhatsApp only, acts on nothing but the send button of a
+conversation the app opened itself, and does nothing else.
 
-- **Contact** — builds a `wa.me` deep link with the message pre-filled and opens the chat directly.
-- **Group** — opens WhatsApp's share picker and locates the target group by name, scrolling
-  the chat list if needed.
-
-In both cases an `AccessibilityService` presses the send button. Android requires the user to
-enable that service by hand under **Settings → Accessibility**, and that explicit grant *is*
-the permission model for the feature. The service is scoped to WhatsApp only and does nothing
-but complete a send the user already configured.
-
-The group flow is a three-step state machine (`PICK_CHAT → CONFIRM_PICKER → SEND_IN_CHAT`)
-rather than a single "press whatever looks like send" pass, because WhatsApp's share picker
-varies by build: some versions open the conversation with the text pre-filled, others send
-straight from the picker. Each screen is identified before anything is clicked, and chat-name
-matching is ranked (exact › prefix › substring) so a loose overlap can't select the wrong chat.
+Group chats are deliberately not supported. WhatsApp exposes no addressable link for a group,
+so the only route is driving its share picker by simulating taps and matching the chat by its
+rendered name — a flow whose screens and view ids change between WhatsApp builds, and whose
+failure mode is posting a private location to the wrong chat. That risk isn't worth the
+feature.
 
 If the screen is off or locked when parking is detected — the common case, phone in pocket —
 the send is written to `PendingAutomationStore` and replayed on `ACTION_USER_PRESENT`. A queued
@@ -128,7 +124,7 @@ domain/      Framework-free business logic
   └── usecase/       SaveParking, ShareLocation, CleanupOldRecords, WhatsAppLinkBuilder
 
 data/        Persistence and remote access
-  ├── local/         Room database (v4), DAOs, entities, DataStore prefs
+  ├── local/         Room database (v5), DAOs, entities, DataStore prefs
   ├── remote/        Retrofit Geocoding client
   └── repository/    single source of truth per aggregate
 

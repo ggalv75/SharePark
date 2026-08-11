@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name">SharePark</string>
     <string name="title_activity_main">MainActivity</string>
-    <string name="wa_auto_service_desc">מאפשר ל-SharePark לשלוח אוטומטית את מיקום החנייה ב-WhatsApp לאיש קשר או קבוצה שהגדרתם, מיד כשמזוהה חנייה. השירות פועל אך ורק בתוך WhatsApp ורק לצורך לחיצה על כפתור השליחה עבורכם.</string>
+    <string name="wa_auto_service_desc">מאפשר ל-SharePark לשלוח אוטומטית את מיקום החנייה ב-WhatsApp לאיש הקשר שהגדרתם, מיד כשמזוהה חנייה. השירות פועל אך ורק בתוך WhatsApp ורק לצורך לחיצה על כפתור השליחה עבורכם.</string>
 </resources>

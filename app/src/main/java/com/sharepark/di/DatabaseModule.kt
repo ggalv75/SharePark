@@ -67,6 +67,34 @@ private val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+/**
+ * Group targets are gone, so `mode` and `group_name` go with them. SQLite can't drop columns
+ * on older Android, so the table is rebuilt — and rules that pointed at a group are dropped
+ * rather than silently reinterpreted as contact rules with no phone number.
+ */
+private val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `automation_rules_new` (
+                `vehicle_id` INTEGER PRIMARY KEY NOT NULL,
+                `phone` TEXT NOT NULL,
+                `target_label` TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `automation_rules_new` (`vehicle_id`, `phone`, `target_label`)
+            SELECT `vehicle_id`, `phone`, `target_label` FROM `automation_rules`
+            WHERE `mode` = 'contact' AND `phone` != ''
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `automation_rules`")
+        db.execSQL("ALTER TABLE `automation_rules_new` RENAME TO `automation_rules`")
+    }
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
@@ -79,7 +107,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
         )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .fallbackToDestructiveMigration()
             .build()
     }

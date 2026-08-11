@@ -68,14 +68,6 @@ class WhatsAppAutomationViewModel @Inject constructor(
         }
     }
 
-    fun setGroupTarget(vehicleId: Long, groupName: String) {
-        val trimmed = groupName.trim()
-        if (trimmed.isEmpty()) return
-        viewModelScope.launch {
-            automationRuleRepository.setGroupTarget(vehicleId, trimmed)
-        }
-    }
-
     fun clearTarget(vehicleId: Long) {
         viewModelScope.launch { automationRuleRepository.clearTarget(vehicleId) }
     }
@@ -106,9 +98,7 @@ class WhatsAppAutomationViewModel @Inject constructor(
             val vehicleName = vehicleRepository.getVehicleById(vehicleId)?.name ?: "הרכב שלי"
             WhatsAppAutoSendService.begin(
                 context = context,
-                mode = rule.mode,
                 phone = rule.phone,
-                groupName = rule.groupName,
                 message = "בדיקת SharePark — כך תיראה ההודעה כש$vehicleName יחנה. " +
                         "אפשר להתעלם מההודעה הזו."
             )

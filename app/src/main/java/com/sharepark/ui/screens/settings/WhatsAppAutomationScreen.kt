@@ -35,7 +35,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -59,11 +58,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.sharepark.data.local.prefs.AutomationConfig
 import com.sharepark.domain.model.Vehicle
 import com.sharepark.platform.automation.AutomationStatusStore
 import com.sharepark.platform.automation.WhatsAppAutoSendService
-import com.sharepark.platform.automation.WhatsAppAutomationBridge
 import com.sharepark.ui.components.IconBadge
 import com.sharepark.ui.components.simpleVerticalScrollbar
 
@@ -81,7 +78,6 @@ fun WhatsAppAutomationScreen(
     val rules by viewModel.rules.collectAsState()
     val zones by viewModel.zones.collectAsState()
     val status by viewModel.status.collectAsState()
-    val learnedChatName by WhatsAppAutomationBridge.learnedChatName.collectAsState()
     val scrollState = rememberScrollState()
 
     // Re-check the accessibility grant whenever the user returns from system settings.
@@ -96,45 +92,18 @@ fun WhatsAppAutomationScreen(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            WhatsAppAutomationBridge.stopLearning()
-        }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // Which vehicle we're currently choosing a target for.
     var editingVehicle by remember { mutableStateOf<Vehicle?>(null) }
-    var awaitingGroupForVehicleId by remember { mutableStateOf<Long?>(null) }
-
-    // A chat the user tapped inside WhatsApp comes back here.
-    LaunchedEffect(learnedChatName) {
-        val learned = learnedChatName ?: return@LaunchedEffect
-        val vehicleId = awaitingGroupForVehicleId ?: return@LaunchedEffect
-        viewModel.setGroupTarget(vehicleId, learned)
-        awaitingGroupForVehicleId = null
-        WhatsAppAutomationBridge.consumeLearnedChat()
-    }
 
     editingVehicle?.let { vehicle ->
         TargetPickerDialog(
             vehicle = vehicle,
             contacts = contacts,
-            accessibilityEnabled = accessibilityEnabled,
-            currentGroupName = rules[vehicle.id]
-                ?.takeIf { it.mode == AutomationConfig.MODE_GROUP }
-                ?.groupName
-                .orEmpty(),
             onPickContact = { contact ->
                 viewModel.setContactTarget(vehicle.id, contact)
-                editingVehicle = null
-            },
-            onPickGroup = {
-                awaitingGroupForVehicleId = vehicle.id
-                editingVehicle = null
-                WhatsAppAutoSendService.openPickerForLearning(context)
-            },
-            onSetGroupName = { name ->
-                viewModel.setGroupTarget(vehicle.id, name)
                 editingVehicle = null
             },
             onClear = {
@@ -296,7 +265,6 @@ fun WhatsAppAutomationScreen(
                         VehicleTargetRow(
                             vehicleName = vehicle.name,
                             targetLabel = rule?.takeIf { it.isConfigured }?.targetLabel,
-                            isGroup = rule?.mode == AutomationConfig.MODE_GROUP,
                             canTest = rule?.isConfigured == true && accessibilityEnabled,
                             onClick = { editingVehicle = vehicle },
                             onTest = { viewModel.sendTestMessage(vehicle.id) }
@@ -392,7 +360,6 @@ fun WhatsAppAutomationScreen(
 private fun VehicleTargetRow(
     vehicleName: String,
     targetLabel: String?,
-    isGroup: Boolean,
     canTest: Boolean,
     onClick: () -> Unit,
     onTest: () -> Unit
@@ -412,11 +379,7 @@ private fun VehicleTargetRow(
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = when {
-                    targetLabel == null -> "לא הוגדר יעד — הקישו לבחירה"
-                    isGroup -> "קבוצה: $targetLabel"
-                    else -> "איש קשר: $targetLabel"
-                },
+                text = targetLabel?.let { "איש קשר: $it" } ?: "לא הוגדר יעד — הקישו לבחירה",
                 style = MaterialTheme.typography.bodySmall,
                 color = if (targetLabel == null) {
                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
@@ -487,29 +450,22 @@ private fun LastAutomationStatusCard(status: AutomationStatusStore.Status) {
 private fun TargetPickerDialog(
     vehicle: Vehicle,
     contacts: List<com.sharepark.domain.model.TrustedContact>,
-    accessibilityEnabled: Boolean,
-    currentGroupName: String,
     onPickContact: (com.sharepark.domain.model.TrustedContact) -> Unit,
-    onPickGroup: () -> Unit,
-    onSetGroupName: (String) -> Unit,
     onClear: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    var manualGroupName by remember(vehicle.id) { mutableStateOf(currentGroupName) }
-    val dialogScrollState = rememberScrollState()
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("יעד עבור ${vehicle.name}") },
         text = {
-            Column(modifier = Modifier.verticalScroll(dialogScrollState)) {
+            Column {
                 Text(
-                    text = "אנשי קשר מורשים:",
+                    text = "בחרו למי תישלח הודעת החנייה של הרכב הזה:",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 if (contacts.isEmpty()) {
                     Text(
                         text = "אין אנשי קשר — הוסיפו במסך 'אנשי קשר מורשים'.",
@@ -532,77 +488,6 @@ private fun TargetPickerDialog(
                             )
                         }
                     }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = "או קבוצת WhatsApp:",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "WhatsApp ייפתח — הקישו על הקבוצה הרצויה והאפליקציה תזכור אותה. אל תשלחו את ההודעה, פשוט חזרו אחורה.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = onPickGroup,
-                    enabled = accessibilityEnabled,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary
-                    )
-                ) {
-                    Text("בחר קבוצה מתוך WhatsApp", fontWeight = FontWeight.Bold)
-                }
-                if (!accessibilityEnabled) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "יש להפעיל תחילה את שירות הנגישות.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Escape hatch: auto-capture can pick up the wrong string (a message preview,
-                // a name with an emoji WhatsApp renders differently). Typing the chat name
-                // exactly as it appears in WhatsApp always works.
-                Text(
-                    text = "או הקלידו את שם הקבוצה:",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = manualGroupName,
-                    onValueChange = { manualGroupName = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("שם הקבוצה ב-WhatsApp") },
-                    singleLine = true
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "יש להקליד בדיוק כפי שהשם מופיע ברשימת הצ'אטים (ללא אימוג'ים).",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = { onSetGroupName(manualGroupName) },
-                    enabled = manualGroupName.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Text("שמור שם קבוצה", fontWeight = FontWeight.Bold)
                 }
             }
         },

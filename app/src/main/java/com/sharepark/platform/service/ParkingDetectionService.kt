@@ -189,9 +189,7 @@ class ParkingDetectionService : Service() {
 
         WhatsAppAutoSendService.begin(
             context = this,
-            mode = rule.mode,
             phone = rule.phone,
-            groupName = rule.groupName,
             message = shareText
         )
     }
