@@ -20,6 +20,14 @@ interface GeocodingApi {
         @Query("key") apiKey: String,
         @Query("language") language: String = "he"
     ): GeocodingResponse
+
+    @GET("maps/api/geocode/json")
+    suspend fun forwardGeocode(
+        @Query("address") address: String,
+        @Query("key") apiKey: String,
+        @Query("language") language: String = "he",
+        @Query("region") region: String = "il"
+    ): GeocodingResponse
 }
 
 // ── Response DTOs ───────────────────────────────────────────────────────────
@@ -31,8 +39,13 @@ data class GeocodingResponse(
 
 data class GeocodingResult(
     val formatted_address: String,
-    val address_components: List<AddressComponent>
+    val address_components: List<AddressComponent>,
+    val geometry: Geometry? = null
 )
+
+data class Geometry(val location: GeoLocation?)
+
+data class GeoLocation(val lat: Double, val lng: Double)
 
 data class AddressComponent(
     val long_name: String,
@@ -47,6 +60,8 @@ class GeocodingService(
     private val apiKey: String
 ) {
     data class GeoResult(val address: String, val mapUrl: String)
+
+    data class Place(val address: String, val latitude: Double, val longitude: Double)
 
     suspend fun reverseGeocode(latitude: Double, longitude: Double): GeoResult {
         val mapUrl = "https://www.google.com/maps/search/?api=1&query=$latitude,$longitude"
@@ -88,6 +103,62 @@ class GeocodingService(
         } catch (e: Exception) {
             Log.e(TAG, "Platform geocoder threw", e)
             null
+        }
+    }
+
+    /** Address text → candidate places, for picking an automation zone by typing its address. */
+    suspend fun searchAddress(query: String, limit: Int = 5): List<Place> {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return emptyList()
+
+        platformSearch(trimmed, limit).takeIf { it.isNotEmpty() }?.let { return it }
+        return httpSearch(trimmed, limit)
+    }
+
+    private suspend fun platformSearch(query: String, limit: Int): List<Place> {
+        if (!Geocoder.isPresent()) return emptyList()
+        val geocoder = Geocoder(context, Locale("he", "IL"))
+        return try {
+            val addresses: List<Address> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                withTimeoutOrNull(8000L) {
+                    suspendCancellableCoroutine { continuation ->
+                        geocoder.getFromLocationName(query, limit, object : Geocoder.GeocodeListener {
+                            override fun onGeocode(result: MutableList<Address>) {
+                                if (continuation.isActive) continuation.resume(result)
+                            }
+
+                            override fun onError(errorMessage: String?) {
+                                Log.w(TAG, "Platform address search error: $errorMessage")
+                                if (continuation.isActive) continuation.resume(emptyList())
+                            }
+                        })
+                    }
+                } ?: emptyList()
+            } else {
+                @Suppress("DEPRECATION")
+                geocoder.getFromLocationName(query, limit) ?: emptyList()
+            }
+            addresses.map { Place(formatAddress(it), it.latitude, it.longitude) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Platform address search threw", e)
+            emptyList()
+        }
+    }
+
+    private suspend fun httpSearch(query: String, limit: Int): List<Place> {
+        if (apiKey.isBlank()) return emptyList()
+        return try {
+            val response = api.forwardGeocode(address = query, apiKey = apiKey)
+            if (response.status != "OK") {
+                Log.w(TAG, "HTTP address search failed: status=${response.status} error=${response.error_message}")
+                return emptyList()
+            }
+            response.results.mapNotNull { result ->
+                result.geometry?.location?.let { Place(result.formatted_address, it.lat, it.lng) }
+            }.take(limit)
+        } catch (e: Exception) {
+            Log.e(TAG, "HTTP address search threw", e)
+            emptyList()
         }
     }
 

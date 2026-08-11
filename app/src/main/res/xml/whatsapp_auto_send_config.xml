@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  flagIncludeNotImportantViews matters: WhatsApp's share picker marks many of its row views as
+  not important for accessibility, and without this flag those nodes are simply absent from the
+  tree we search — the group row can never be found, so the automated send silently stalls.
+-->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewClicked"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagDefault|flagReportViewIds"
+    android:accessibilityFlags="flagDefault|flagReportViewIds|flagIncludeNotImportantViews|flagRetrieveInteractiveWindows"
     android:canRetrieveWindowContent="true"
     android:description="@string/wa_auto_service_desc"
     android:notificationTimeout="200"
-    android:packageNames="com.whatsapp" />
+    android:packageNames="com.whatsapp,com.whatsapp.w4b" />

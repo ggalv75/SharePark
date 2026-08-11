@@ -3,10 +3,12 @@ package com.sharepark.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.sharepark.data.local.dao.AutomationRuleDao
+import com.sharepark.data.local.dao.AutomationZoneDao
 import com.sharepark.data.local.dao.ParkingRecordDao
 import com.sharepark.data.local.dao.TrustedContactDao
 import com.sharepark.data.local.dao.VehicleDao
 import com.sharepark.data.local.entity.AutomationRuleEntity
+import com.sharepark.data.local.entity.AutomationZoneEntity
 import com.sharepark.data.local.entity.ParkingRecordEntity
 import com.sharepark.data.local.entity.TrustedContactEntity
 import com.sharepark.data.local.entity.VehicleEntity
@@ -16,9 +18,10 @@ import com.sharepark.data.local.entity.VehicleEntity
         VehicleEntity::class,
         ParkingRecordEntity::class,
         TrustedContactEntity::class,
-        AutomationRuleEntity::class
+        AutomationRuleEntity::class,
+        AutomationZoneEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun parkingRecordDao(): ParkingRecordDao
     abstract fun trustedContactDao(): TrustedContactDao
     abstract fun automationRuleDao(): AutomationRuleDao
+    abstract fun automationZoneDao(): AutomationZoneDao
 
     companion object {
         const val DATABASE_NAME = "sharepark_db"

@@ -2,6 +2,7 @@ package com.sharepark.ui.screens.settings
 
 import android.content.Intent
 import android.provider.Settings
+import android.text.format.DateUtils
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,7 +18,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -29,6 +35,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -54,6 +61,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.sharepark.data.local.prefs.AutomationConfig
 import com.sharepark.domain.model.Vehicle
+import com.sharepark.platform.automation.AutomationStatusStore
 import com.sharepark.platform.automation.WhatsAppAutoSendService
 import com.sharepark.platform.automation.WhatsAppAutomationBridge
 import com.sharepark.ui.components.IconBadge
@@ -63,6 +71,7 @@ import com.sharepark.ui.components.simpleVerticalScrollbar
 @Composable
 fun WhatsAppAutomationScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToZones: () -> Unit = {},
     viewModel: WhatsAppAutomationViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -70,6 +79,8 @@ fun WhatsAppAutomationScreen(
     val vehicles by viewModel.vehicles.collectAsState()
     val contacts by viewModel.contacts.collectAsState()
     val rules by viewModel.rules.collectAsState()
+    val zones by viewModel.zones.collectAsState()
+    val status by viewModel.status.collectAsState()
     val learnedChatName by WhatsAppAutomationBridge.learnedChatName.collectAsState()
     val scrollState = rememberScrollState()
 
@@ -109,6 +120,10 @@ fun WhatsAppAutomationScreen(
             vehicle = vehicle,
             contacts = contacts,
             accessibilityEnabled = accessibilityEnabled,
+            currentGroupName = rules[vehicle.id]
+                ?.takeIf { it.mode == AutomationConfig.MODE_GROUP }
+                ?.groupName
+                .orEmpty(),
             onPickContact = { contact ->
                 viewModel.setContactTarget(vehicle.id, contact)
                 editingVehicle = null
@@ -117,6 +132,10 @@ fun WhatsAppAutomationScreen(
                 awaitingGroupForVehicleId = vehicle.id
                 editingVehicle = null
                 WhatsAppAutoSendService.openPickerForLearning(context)
+            },
+            onSetGroupName = { name ->
+                viewModel.setGroupTarget(vehicle.id, name)
+                editingVehicle = null
             },
             onClear = {
                 viewModel.clearTarget(vehicle.id)
@@ -278,13 +297,65 @@ fun WhatsAppAutomationScreen(
                             vehicleName = vehicle.name,
                             targetLabel = rule?.takeIf { it.isConfigured }?.targetLabel,
                             isGroup = rule?.mode == AutomationConfig.MODE_GROUP,
-                            onClick = { editingVehicle = vehicle }
+                            canTest = rule?.isConfigured == true && accessibilityEnabled,
+                            onClick = { editingVehicle = vehicle },
+                            onTest = { viewModel.sendTestMessage(vehicle.id) }
                         )
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // Where automation is allowed to fire
+            SectionCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNavigateToZones() },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconBadge(
+                        icon = Icons.Default.LocationOn,
+                        tint = MaterialTheme.colorScheme.primary,
+                        size = 36.dp,
+                        iconSize = 20.dp,
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "אזורי אוטומציה",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        val activeZones = zones.count { it.isEnabled }
+                        Text(
+                            text = when {
+                                !config.zonesOnly -> "ההגבלה כבויה — ההודעה נשלחת בכל חנייה"
+                                activeZones == 0 -> "לא הוגדרו אזורים — הקישו כדי לסמן כתובת ורדיוס"
+                                activeZones == 1 -> "אזור פעיל אחד — ההודעה תישלח רק מתוכו"
+                                else -> "$activeZones אזורים פעילים — ההודעה תישלח רק מתוכם"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ChevronLeft,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // What happened on the last run — the only window into a flow that runs unattended
+            status?.let { lastStatus ->
+                LastAutomationStatusCard(lastStatus)
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
             // Disclaimer
             SectionCard(alpha = 0.5f) {
@@ -322,7 +393,9 @@ private fun VehicleTargetRow(
     vehicleName: String,
     targetLabel: String?,
     isGroup: Boolean,
-    onClick: () -> Unit
+    canTest: Boolean,
+    onClick: () -> Unit,
+    onTest: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -352,6 +425,61 @@ private fun VehicleTargetRow(
                 }
             )
         }
+        if (canTest) {
+            TextButton(onClick = onTest) {
+                Text("בדיקה")
+            }
+        }
+    }
+}
+
+@Composable
+private fun LastAutomationStatusCard(status: AutomationStatusStore.Status) {
+    val (icon, tint, title) = when (status.outcome) {
+        AutomationStatusStore.Outcome.SENT ->
+            Triple(Icons.Default.CheckCircle, MaterialTheme.colorScheme.tertiary, "ההודעה נשלחה")
+        AutomationStatusStore.Outcome.DEFERRED ->
+            Triple(Icons.Default.Schedule, MaterialTheme.colorScheme.secondary, "ההודעה ממתינה")
+        AutomationStatusStore.Outcome.SKIPPED ->
+            Triple(Icons.Default.Info, MaterialTheme.colorScheme.secondary, "ההודעה לא נשלחה")
+        AutomationStatusStore.Outcome.FAILED ->
+            Triple(Icons.Default.Warning, MaterialTheme.colorScheme.error, "השליחה נכשלה")
+    }
+
+    SectionCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(
+                icon = icon,
+                tint = tint,
+                size = 36.dp,
+                iconSize = 20.dp,
+                modifier = Modifier.padding(end = 12.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "ניסיון אחרון: $title",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = status.detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                if (status.timestamp > 0L) {
+                    Text(
+                        text = DateUtils.getRelativeTimeSpanString(
+                            status.timestamp,
+                            System.currentTimeMillis(),
+                            DateUtils.MINUTE_IN_MILLIS
+                        ).toString(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -360,16 +488,21 @@ private fun TargetPickerDialog(
     vehicle: Vehicle,
     contacts: List<com.sharepark.domain.model.TrustedContact>,
     accessibilityEnabled: Boolean,
+    currentGroupName: String,
     onPickContact: (com.sharepark.domain.model.TrustedContact) -> Unit,
     onPickGroup: () -> Unit,
+    onSetGroupName: (String) -> Unit,
     onClear: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var manualGroupName by remember(vehicle.id) { mutableStateOf(currentGroupName) }
+    val dialogScrollState = rememberScrollState()
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("יעד עבור ${vehicle.name}") },
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(dialogScrollState)) {
                 Text(
                     text = "אנשי קשר מורשים:",
                     style = MaterialTheme.typography.bodyMedium,
@@ -433,6 +566,43 @@ private fun TargetPickerDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Escape hatch: auto-capture can pick up the wrong string (a message preview,
+                // a name with an emoji WhatsApp renders differently). Typing the chat name
+                // exactly as it appears in WhatsApp always works.
+                Text(
+                    text = "או הקלידו את שם הקבוצה:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = manualGroupName,
+                    onValueChange = { manualGroupName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("שם הקבוצה ב-WhatsApp") },
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "יש להקליד בדיוק כפי שהשם מופיע ברשימת הצ'אטים (ללא אימוג'ים).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { onSetGroupName(manualGroupName) },
+                    enabled = manualGroupName.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("שמור שם קבוצה", fontWeight = FontWeight.Bold)
                 }
             }
         },

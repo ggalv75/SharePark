@@ -70,6 +70,7 @@ working detection and a crash loop on real hardware.
 | 🗺️ **Live map** | Compose-native Google Maps view of the current parking spot, with a full-screen mode. |
 | 📜 **History** | Every parking event kept for 30 days, then pruned automatically by a WorkManager job. |
 | 💬 **WhatsApp automation** | Per-vehicle rules — each car can target a different contact or group chat. |
+| 🎯 **Automation zones** | Mark addresses on the map with a radius each; the automated message only fires for parkings inside one of them. |
 | 🔒 **Deferred send** | If the phone is locked when you park, the message is queued and sent the moment you unlock. |
 | 👥 **Trusted contacts** | Saved recipients for quick manual sharing. |
 | 🔁 **Survives reboot** | `BootReceiver` re-arms monitoring after restart or app update. |
@@ -88,9 +89,28 @@ enable that service by hand under **Settings → Accessibility**, and that expli
 the permission model for the feature. The service is scoped to WhatsApp only and does nothing
 but complete a send the user already configured.
 
+The group flow is a three-step state machine (`PICK_CHAT → CONFIRM_PICKER → SEND_IN_CHAT`)
+rather than a single "press whatever looks like send" pass, because WhatsApp's share picker
+varies by build: some versions open the conversation with the text pre-filled, others send
+straight from the picker. Each screen is identified before anything is clicked, and chat-name
+matching is ranked (exact › prefix › substring) so a loose overlap can't select the wrong chat.
+
 If the screen is off or locked when parking is detected — the common case, phone in pocket —
 the send is written to `PendingAutomationStore` and replayed on `ACTION_USER_PRESENT`. A queued
 send also survives the process being killed: the service re-checks the store on reconnect.
+
+The outcome of every attempt is recorded in `AutomationStatusStore` and surfaced in the
+automation screen — an unattended flow that fails silently is otherwise indistinguishable from
+one that never ran. The same screen has a per-vehicle **בדיקה** button that runs the real
+send path with a test message, so the flow can be verified without driving anywhere.
+
+## Automation zones
+
+Automation is gated on *where* the car parked. Each zone is an address (searched by text or
+tapped on the map) plus a radius of 50–2000 m, and a parking only triggers a message when it
+falls inside an enabled zone — the smallest matching one wins, so a tight circle drawn inside
+a wider one is the one reported. With no zones defined the gate is inert and automation runs
+everywhere, so enabling the option can never silently switch the feature off.
 
 ## Architecture
 
@@ -104,11 +124,11 @@ ui/          Compose screens + ViewModels, state exposed as StateFlow
   └── theme/         Material 3 theming
 
 domain/      Framework-free business logic
-  ├── model/         Vehicle, ParkingRecord, TrustedContact
+  ├── model/         Vehicle, ParkingRecord, TrustedContact, AutomationZone
   └── usecase/       SaveParking, ShareLocation, CleanupOldRecords, WhatsAppLinkBuilder
 
 data/        Persistence and remote access
-  ├── local/         Room database (v3), DAOs, entities, DataStore prefs
+  ├── local/         Room database (v4), DAOs, entities, DataStore prefs
   ├── remote/        Retrofit Geocoding client
   └── repository/    single source of truth per aggregate
 
@@ -191,7 +211,8 @@ full key-handling model, including how to restrict the key in the Google Cloud C
 1. Grant location (**Allow all the time** — required for background detection), Bluetooth, and notification permissions.
 2. Add a vehicle and select its paired Bluetooth device.
 3. Optionally exempt the app from battery optimisation so detection survives Doze.
-4. To enable auto-send: **Settings → WhatsApp automation**, pick a target per vehicle, then enable the accessibility service when prompted.
+4. To enable auto-send: **Settings → WhatsApp automation**, pick a target per vehicle, then enable the accessibility service when prompted. Use **בדיקה** next to a vehicle to verify the send works before relying on it.
+5. Optionally restrict where it fires: **Settings → Automation zones**, mark the addresses that should trigger a message and set a radius for each.
 
 ## Permissions and why each is needed
 

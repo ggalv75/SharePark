@@ -11,11 +11,16 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import com.sharepark.data.local.prefs.AutomationPreferences
 import com.sharepark.data.repository.AutomationRuleRepository
+import com.sharepark.data.repository.AutomationZoneRepository
 import com.sharepark.data.repository.VehicleRepository
+import com.sharepark.data.repository.contains
+import com.sharepark.data.repository.distanceTo
 import com.sharepark.domain.usecase.SaveParkingUseCase
 import com.sharepark.domain.usecase.ShareLocationUseCase
+import com.sharepark.platform.automation.AutomationStatusStore
 import com.sharepark.platform.automation.WhatsAppAutoSendService
 import com.sharepark.platform.location.LocationHelper
 import com.sharepark.platform.notification.NotificationHelper
@@ -28,8 +33,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.Locale
 import javax.inject.Inject
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
 
 @AndroidEntryPoint
 class ParkingDetectionService : Service() {
@@ -39,6 +46,7 @@ class ParkingDetectionService : Service() {
     @Inject lateinit var shareLocationUseCase: ShareLocationUseCase
     @Inject lateinit var automationPreferences: AutomationPreferences
     @Inject lateinit var automationRuleRepository: AutomationRuleRepository
+    @Inject lateinit var automationZoneRepository: AutomationZoneRepository
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -112,19 +120,12 @@ class ParkingDetectionService : Service() {
 
                 // 5. WhatsApp automation: each vehicle has its own target chat, so look up
                 // the rule for the car that just parked.
-                val automation = automationPreferences.getConfig()
-                val rule = automationRuleRepository.getRuleForVehicle(vehicleId)
-                if (automation.enabled && rule != null && rule.isConfigured &&
-                    WhatsAppAutoSendService.isEnabled(this@ParkingDetectionService)
-                ) {
-                    WhatsAppAutoSendService.begin(
-                        context = this@ParkingDetectionService,
-                        mode = rule.mode,
-                        phone = rule.phone,
-                        groupName = rule.groupName,
-                        message = shareText
-                    )
-                }
+                runAutomation(
+                    vehicleId = vehicleId,
+                    latitude = location.latitude,
+                    longitude = location.longitude,
+                    shareText = shareText
+                )
             }
 
             stopSelf()
@@ -132,6 +133,76 @@ class ParkingDetectionService : Service() {
 
         return START_NOT_STICKY
     }
+
+    /**
+     * Decides whether this parking should trigger an automated WhatsApp message, and fires it.
+     *
+     * The zone check is the gate the user asked for: with "zones only" on and at least one zone
+     * defined, a car parked outside every circle stays private. No zones defined means no
+     * restriction — otherwise turning the feature on would silently disable automation.
+     */
+    private suspend fun runAutomation(
+        vehicleId: Long,
+        latitude: Double,
+        longitude: Double,
+        shareText: String
+    ) {
+        val automation = automationPreferences.getConfig()
+        if (!automation.enabled) return
+
+        val rule = automationRuleRepository.getRuleForVehicle(vehicleId)
+        if (rule == null || !rule.isConfigured) {
+            AutomationStatusStore.record(
+                this,
+                AutomationStatusStore.Outcome.SKIPPED,
+                "לא הוגדר יעד WhatsApp עבור הרכב הזה"
+            )
+            return
+        }
+
+        if (!WhatsAppAutoSendService.isEnabled(this)) {
+            AutomationStatusStore.record(
+                this,
+                AutomationStatusStore.Outcome.SKIPPED,
+                "שירות הנגישות כבוי — לא ניתן לשלוח אוטומטית"
+            )
+            return
+        }
+
+        if (automation.zonesOnly) {
+            val zones = automationZoneRepository.getEnabledZones()
+            if (zones.isNotEmpty()) {
+                val matched = zones
+                    .filter { it.contains(latitude, longitude) }
+                    .minByOrNull { it.radiusMeters }
+                if (matched == null) {
+                    val nearest = zones.minByOrNull { it.distanceTo(latitude, longitude) }
+                    val detail = nearest?.let {
+                        "החנייה מחוץ לאזורים שהוגדרו (${formatDistance(it.distanceTo(latitude, longitude))} מ\"${it.label}\")"
+                    } ?: "החנייה מחוץ לאזורים שהוגדרו"
+                    AutomationStatusStore.record(this, AutomationStatusStore.Outcome.SKIPPED, detail)
+                    return
+                }
+                Log.i(TAG, "Parking matched automation zone")
+            }
+        }
+
+        WhatsAppAutoSendService.begin(
+            context = this,
+            mode = rule.mode,
+            phone = rule.phone,
+            groupName = rule.groupName,
+            message = shareText
+        )
+    }
+
+    /** Metres up close, kilometres once "83421 מ'" stops being a number anyone can read. */
+    private fun formatDistance(meters: Float): String =
+        if (meters < 1000f) {
+            "${meters.roundToInt()} מ'"
+        } else {
+            "${String.format(Locale.getDefault(), "%.1f", meters / 1000f)} ק\"מ"
+        }
 
     private suspend fun isDeviceStillConnected(macAddress: String): Boolean {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager ?: return false
@@ -189,4 +260,8 @@ class ParkingDetectionService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private companion object {
+        const val TAG = "ParkingDetection"
+    }
 }

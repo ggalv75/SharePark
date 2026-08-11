@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.People
@@ -275,12 +276,25 @@ fun MapContent(
                 }
             }
 
-            // Floating action buttons — re-center on my location / on the car
+            // Floating action buttons — full screen / re-center on my location / on the car
             Column(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(16.dp)
             ) {
+                // Tapping the map also expands it, but that's invisible until you try it.
+                if (!isFullScreen) {
+                    FloatingActionButton(
+                        onClick = onToggleFullScreen,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ) {
+                        Icon(Icons.Default.Fullscreen, contentDescription = "מסך מלא")
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
                 FloatingActionButton(
                     onClick = {
                         coroutineScope.launch {

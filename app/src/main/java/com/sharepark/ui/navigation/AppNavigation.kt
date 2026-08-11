@@ -43,11 +43,20 @@ import androidx.navigation.compose.rememberNavController
 import com.sharepark.platform.permissions.PermissionManager
 import com.sharepark.ui.screens.history.HistoryScreen
 import com.sharepark.ui.screens.map.MapScreen
+import com.sharepark.ui.screens.settings.AutomationZonesScreen
 import com.sharepark.ui.screens.settings.SettingsScreen
 import com.sharepark.ui.screens.settings.TrustedContactsScreen
 import com.sharepark.ui.screens.settings.WhatsAppAutomationScreen
 import com.sharepark.ui.screens.vehicles.AddVehicleScreen
 import com.sharepark.ui.screens.vehicles.VehiclesScreen
+
+/** Detail screens that own the whole window — the bottom bar is hidden while they're up. */
+private val FULL_SCREEN_ROUTES = setOf(
+    "add_vehicle",
+    "trusted_contacts",
+    "wa_automation",
+    "automation_zones"
+)
 
 sealed class Screen(val route: String, val label: String, val icon: @Composable () -> Unit) {
     object Map : Screen("map", "מפה", { Icon(Icons.Default.Map, contentDescription = "מפה") })
@@ -124,9 +133,7 @@ fun AppNavigation() {
 
     Scaffold(
         bottomBar = {
-            if (currentRoute != "add_vehicle" && currentRoute != "trusted_contacts" &&
-                currentRoute != "wa_automation" && !isMapFullScreen
-            ) {
+            if (currentRoute !in FULL_SCREEN_ROUTES && !isMapFullScreen) {
                 NavigationBar {
                     val items = listOf(Screen.Map, Screen.Vehicles, Screen.History, Screen.Settings)
                     items.forEach { screen ->
@@ -189,7 +196,8 @@ fun AppNavigation() {
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onNavigateToTrustedContacts = { navController.navigate("trusted_contacts") },
-                    onNavigateToWhatsAppAutomation = { navController.navigate("wa_automation") }
+                    onNavigateToWhatsAppAutomation = { navController.navigate("wa_automation") },
+                    onNavigateToAutomationZones = { navController.navigate("automation_zones") }
                 )
             }
             composable("trusted_contacts") {
@@ -199,6 +207,12 @@ fun AppNavigation() {
             }
             composable("wa_automation") {
                 WhatsAppAutomationScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToZones = { navController.navigate("automation_zones") }
+                )
+            }
+            composable("automation_zones") {
+                AutomationZonesScreen(
                     onNavigateBack = { navController.popBackStack() }
                 )
             }

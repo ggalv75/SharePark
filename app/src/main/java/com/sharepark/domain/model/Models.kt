@@ -28,3 +28,24 @@ data class TrustedContact(
     val phoneNumber: String,
     val createdAt: Long = System.currentTimeMillis()
 )
+
+/**
+ * A circle on the map — an address the user cares about plus how far around it still counts.
+ * Automation only fires for parkings that land inside one of these.
+ */
+data class AutomationZone(
+    val id: Long = 0,
+    val label: String,
+    val address: String = "",
+    val latitude: Double,
+    val longitude: Double,
+    val radiusMeters: Int = DEFAULT_RADIUS_METERS,
+    val isEnabled: Boolean = true,
+    val createdAt: Long = System.currentTimeMillis()
+) {
+    companion object {
+        const val DEFAULT_RADIUS_METERS = 200
+        const val MIN_RADIUS_METERS = 50
+        const val MAX_RADIUS_METERS = 2000
+    }
+}

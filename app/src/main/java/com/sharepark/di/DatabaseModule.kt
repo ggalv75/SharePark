@@ -6,6 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.sharepark.data.local.AppDatabase
 import com.sharepark.data.local.dao.AutomationRuleDao
+import com.sharepark.data.local.dao.AutomationZoneDao
 import com.sharepark.data.local.dao.ParkingRecordDao
 import com.sharepark.data.local.dao.TrustedContactDao
 import com.sharepark.data.local.dao.VehicleDao
@@ -47,6 +48,25 @@ private val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+private val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `automation_zones` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `label` TEXT NOT NULL,
+                `address` TEXT NOT NULL,
+                `latitude` REAL NOT NULL,
+                `longitude` REAL NOT NULL,
+                `radius_meters` INTEGER NOT NULL,
+                `is_enabled` INTEGER NOT NULL,
+                `created_at` INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+    }
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
@@ -59,7 +79,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
         )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .fallbackToDestructiveMigration()
             .build()
     }
@@ -82,5 +102,10 @@ object DatabaseModule {
     @Provides
     fun provideAutomationRuleDao(database: AppDatabase): AutomationRuleDao {
         return database.automationRuleDao()
+    }
+
+    @Provides
+    fun provideAutomationZoneDao(database: AppDatabase): AutomationZoneDao {
+        return database.automationZoneDao()
     }
 }
