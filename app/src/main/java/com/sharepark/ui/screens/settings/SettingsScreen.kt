@@ -1,10 +1,6 @@
 package com.sharepark.ui.screens.settings
 
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,47 +10,39 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
-import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.sharepark.R
-import com.sharepark.ui.components.IconBadge
+import com.sharepark.ui.components.AppCard
+import com.sharepark.ui.components.CardTitle
+import com.sharepark.ui.components.NavigationRowCard
+import com.sharepark.ui.components.PrimaryPillButton
+import com.sharepark.ui.components.ScreenHeader
+import com.sharepark.ui.components.SecondaryPillButton
+import com.sharepark.ui.components.SectionHeader
 import com.sharepark.ui.components.simpleVerticalScrollbar
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onNavigateToTrustedContacts: () -> Unit = {},
@@ -74,28 +62,17 @@ fun SettingsScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "הגדרות האפליקציה",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
-        }
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = { ScreenHeader(title = "הגדרות") }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .simpleVerticalScrollbar(scrollState, MaterialTheme.colorScheme.onBackground)
-                .padding(16.dp)
                 .verticalScroll(scrollState)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (viewModel.isAccountAvailable) {
                 AccountCard(
@@ -104,345 +81,136 @@ fun SettingsScreen(
                     onSignIn = { viewModel.signIn(context) },
                     onSignOut = viewModel::signOut
                 )
-                Spacer(modifier = Modifier.height(20.dp))
             }
 
+            SectionHeader(title = "שיתוף ואוטומציה", modifier = Modifier.padding(top = 8.dp))
+
+            // Trusted contacts (family sharing) entry point
+            NavigationRowCard(
+                title = "אנשי קשר מורשים",
+                description = "נהל את בני המשפחה שאיתם תוכל לשתף את מיקום החנייה ב-WhatsApp",
+                icon = Icons.Default.People,
+                onClick = onNavigateToTrustedContacts
+            )
+
+            // WhatsApp automation entry point
+            NavigationRowCard(
+                title = "אוטומציית WhatsApp",
+                description = "שליחת מיקום החנייה אוטומטית לאיש קשר מורשה — בלי אף לחיצה",
+                icon = Icons.Default.Send,
+                onClick = onNavigateToWhatsAppAutomation
+            )
+
+            // Automation zones entry point
+            NavigationRowCard(
+                title = "אזורי אוטומציה",
+                description = "סמנו כתובות ורדיוס סביבן — ההודעה האוטומטית תישלח רק כשחונים בתוכן",
+                icon = Icons.Default.LocationOn,
+                onClick = onNavigateToAutomationZones
+            )
+
+            SectionHeader(title = "פעולה ברקע", modifier = Modifier.padding(top = 8.dp))
+
             // Background running configurations
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+            AppCard {
+                CardTitle(title = "מניעת סגירה ברקע", icon = Icons.Default.BatteryAlert)
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "מערכות הפעלה של אנדרואיד עשויות לסגור את שירות מעקב הבלוטות' ברקע כדי לחסוך בסוללה. מומלץ לבטל את אופטימיזציית הסוללה עבור SharePark.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconBadge(
-                            icon = Icons.Default.BatteryAlert,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            size = 36.dp,
-                            iconSize = 20.dp,
-                            modifier = Modifier.padding(end = 12.dp)
-                        )
-                        Text(
-                            text = "מניעת סגירת האפליקציה ברקע",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        text = "מערכות הפעלה של אנדרואיד עשויות לסגור את שירות מעקב הבלוטות' ברקע כדי לחסוך בסוללה. מומלץ לבטל את אופטימיזציית הסוללה עבור SharePark.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                Spacer(modifier = Modifier.height(16.dp))
+                if (batteryIgnored) {
+                    SecondaryPillButton(
+                        text = "התעלמות מאופטימיזציה מאופשרת",
+                        icon = Icons.Default.CheckCircle,
+                        onClick = {
+                            viewModel.requestIgnoreBatteryOptimizations(context)
+                            batteryIgnored = viewModel.isIgnoringBatteryOptimizations(context)
+                        },
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Button(
+                } else {
+                    PrimaryPillButton(
+                        text = "אפשר התעלמות מאופטימיזציית סוללה",
                         onClick = {
                             viewModel.requestIgnoreBatteryOptimizations(context)
                             // update status when user returns
                             batteryIgnored = viewModel.isIgnoringBatteryOptimizations(context)
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (batteryIgnored) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
-                                           else MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Text(
-                            text = if (batteryIgnored) "התעלמות מאופטימיזציה מאופשרת" else "אפשר התעלמות מאופטימיזציית סוללה",
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
 
             // Auto-start permission — often needed on OPPO/ColorOS so the app can reliably
             // detect Bluetooth disconnects and post notifications while running in the background
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+            AppCard {
+                CardTitle(title = "הפעלה אוטומטית ברקע", icon = Icons.Default.PowerSettingsNew)
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "מכשירי OPPO/ColorOS עשויים לחסום את SharePark מלהתעורר ברקע ולזהות חנייה כשהאפליקציה סגורה. אשרו הפעלה אוטומטית (Auto-start) עבור האפליקציה במסך שייפתח.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconBadge(
-                            icon = Icons.Default.BatteryAlert,
-                            tint = MaterialTheme.colorScheme.tertiary,
-                            size = 36.dp,
-                            iconSize = 20.dp,
-                            modifier = Modifier.padding(end = 12.dp)
-                        )
-                        Text(
-                            text = "הפעלה אוטומטית ברקע",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "מכשירי OPPO/ColorOS עשויים לחסום את SharePark מלהתעורר ברקע ולזהות חנייה כשהאפליקציה סגורה. אשרו הפעלה אוטומטית (Auto-start) עבור האפליקציה במסך שייפתח.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { viewModel.openAutoStartSettings(context) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiary
-                        )
-                    ) {
-                        Text(
-                            text = "פתח הגדרות הפעלה אוטומטית",
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+                Spacer(modifier = Modifier.height(16.dp))
+                SecondaryPillButton(
+                    text = "פתח הגדרות הפעלה אוטומטית",
+                    onClick = { viewModel.openAutoStartSettings(context) },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            SectionHeader(title = "בדיקה ועזרה", modifier = Modifier.padding(top = 8.dp))
 
             // Testing / Simulation Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+            AppCard {
+                CardTitle(title = "סימולציית זיהוי חנייה", icon = Icons.Default.PlayArrow)
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "אין צורך לצאת לנסיעה כדי לבדוק את האפליקציה! לחץ על הכפתור כדי לדמות אירוע ניתוק בלוטות' ולשמור את מיקומך הנוכחי.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconBadge(
-                            icon = Icons.Default.PlayArrow,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            size = 36.dp,
-                            iconSize = 20.dp,
-                            modifier = Modifier.padding(end = 12.dp)
-                        )
-                        Text(
-                            text = "סימולציית זיהוי חנייה",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        text = "אין צורך לצאת לנסיעה כדי לבדוק את האפליקציה! לחץ על הכפתור כדי לדמות אירוע ניתוק בלוטות' ולשמור את מיקומך הנוכחי.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Button(
-                        onClick = { viewModel.simulateParkingDisconnect() },
-                        enabled = activeVehicle != null,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary
-                        )
-                    ) {
-                        Text(
-                            text = if (activeVehicle != null) "סמל ניתוק עבור ${activeVehicle?.name}" else "אין רכב פעיל לסימולציה",
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Trusted contacts (family sharing) entry point
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigateToTrustedContacts() },
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                Spacer(modifier = Modifier.height(16.dp))
+                SecondaryPillButton(
+                    text = if (activeVehicle != null) "דמה ניתוק עבור ${activeVehicle?.name}" else "אין רכב פעיל לסימולציה",
+                    onClick = { viewModel.simulateParkingDisconnect() },
+                    enabled = activeVehicle != null,
+                    modifier = Modifier.fillMaxWidth()
                 )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconBadge(
-                        icon = Icons.Default.People,
-                        tint = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.padding(end = 12.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "אנשי קשר מורשים",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "נהל את בני המשפחה שאיתם תוכל לשתף את מיקום החנייה ב-WhatsApp",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.ChevronLeft,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
-                }
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // WhatsApp automation entry point
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigateToWhatsAppAutomation() },
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconBadge(
-                        icon = Icons.Default.Send,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 12.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "אוטומציית WhatsApp",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "שליחת מיקום החנייה אוטומטית לאיש קשר מורשה — בלי אף לחיצה",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.ChevronLeft,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Automation zones entry point
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigateToAutomationZones() },
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconBadge(
-                        icon = Icons.Default.LocationOn,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(end = 12.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "אזורי אוטומציה",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "סמנו כתובות ורדיוס סביבן — ההודעה האוטומטית תישלח רק כשחונים בתוכן",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.ChevronLeft,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
 
             // Helpful hints Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+            AppCard {
+                CardTitle(title = "מדריך קצר", icon = Icons.Default.Info)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val steps = listOf(
+                    "ודא שהטלפון מוצמד (Paired) לבלוטות' של הרכב בהגדרות המערכת.",
+                    "הוסף את הרכב בכרטיסייה 'רכבים'.",
+                    "ודא שהרשאת המיקום מוגדרת כ-'אפשר תמיד' (Allow all the time) על מנת שהשירות יפעל גם כשהמסך כבוי.",
+                    "השירות ירוץ ברקע בצורה חסכונית במיוחד וישמור את המיקום ברגע שתכבה את המנוע והרכב יתנתק מהטלפון."
                 )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconBadge(
-                            icon = Icons.Default.Info,
-                            tint = MaterialTheme.colorScheme.primary,
-                            size = 36.dp,
-                            iconSize = 20.dp,
-                            modifier = Modifier.padding(end = 12.dp)
+                steps.forEachIndexed { index, step ->
+                    Row(modifier = Modifier.padding(vertical = 6.dp)) {
+                        Text(
+                            text = "${index + 1}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.width(24.dp)
                         )
                         Text(
-                            text = "מדריך קצר",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
+                            text = step,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    val guideText = """
-                        1. ודא שהטלפון מוצמד (Paired) לבלוטות' של הרכב בהגדרות המערכת.
-                        2. הוסף את הרכב בכרטיסייה 'רכבים'.
-                        3. ודא שהרשאת המיקום מוגדרת כ-'אפשר תמיד' (Allow all the time) על מנת שהשירות יפעל גם כשהמסך כבוי.
-                        4. השירות ירוץ ברקע בצורה חסכונית במיוחד וישמור את המיקום ברגע שתכבה את המנוע והרכב יתנתק מהטלפון.
-                    """.trimIndent()
-                    
-                    Text(
-                        text = guideText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                    )
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }

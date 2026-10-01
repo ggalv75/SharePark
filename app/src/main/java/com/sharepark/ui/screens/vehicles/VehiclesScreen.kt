@@ -1,25 +1,26 @@
 package com.sharepark.ui.screens.vehicles
 
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Edit
@@ -27,10 +28,6 @@ import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,8 +35,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,21 +44,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.sharepark.R
 import com.sharepark.domain.model.Vehicle
+import com.sharepark.ui.components.AppCard
 import com.sharepark.ui.components.IconBadge
-import com.sharepark.ui.components.pressScale
+import com.sharepark.ui.components.PrimaryPillButton
+import com.sharepark.ui.components.ScreenHeader
 import com.sharepark.ui.components.rememberBreathingScale
 import com.sharepark.ui.components.simpleVerticalScrollbar
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VehiclesScreen(
     onNavigateToAddVehicle: () -> Unit,
@@ -111,42 +102,21 @@ fun VehiclesScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "הרכבים שלי",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+            ScreenHeader(
+                title = "הרכבים שלי",
                 actions = {
                     if (viewModel.isSharingAvailable) {
                         IconButton(onClick = viewModel::startJoin) {
-                            Icon(
-                                Icons.Default.GroupAdd,
-                                contentDescription = "הצטרפות לרכב משותף",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                            Icon(Icons.Default.GroupAdd, contentDescription = "הצטרפות לרכב משותף")
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
+                    IconButton(onClick = onNavigateToAddVehicle) {
+                        Icon(Icons.Default.Add, contentDescription = "הוסף רכב")
+                    }
+                }
             )
-        },
-        floatingActionButton = {
-            val fabInteractionSource = remember { MutableInteractionSource() }
-            FloatingActionButton(
-                onClick = onNavigateToAddVehicle,
-                interactionSource = fabInteractionSource,
-                modifier = Modifier.pressScale(fabInteractionSource),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "הוסף רכב")
-            }
         }
     ) { padding ->
         Box(
@@ -155,30 +125,40 @@ fun VehiclesScreen(
                 .padding(padding)
         ) {
             if (vehicles.isEmpty()) {
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(horizontal = 28.dp),
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val breathingScale = rememberBreathingScale()
-                        IconBadge(
-                            icon = Icons.Default.Bluetooth,
-                            tint = MaterialTheme.colorScheme.primary,
-                            size = 72.dp,
-                            iconSize = 34.dp,
-                            modifier = Modifier
-                                .padding(bottom = 16.dp)
-                                .scale(breathingScale)
-                        )
-                        Text(
-                            text = "לא רשומים רכבים.\nהוסף את הרכב שלך ולמד אותו לזהות את הבלוטות' של המכונית.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                        )
-                    }
+                    val breathingScale = rememberBreathingScale()
+                    IconBadge(
+                        icon = Icons.Default.Bluetooth,
+                        tint = MaterialTheme.colorScheme.primary,
+                        size = 64.dp,
+                        iconSize = 30.dp,
+                        modifier = Modifier
+                            .padding(bottom = 20.dp)
+                            .scale(breathingScale)
+                    )
+                    Text(
+                        text = "עוד אין רכבים",
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "הוסף את הרכב שלך ולמד אותו לזהות את הבלוטות' של המכונית.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(28.dp))
+                    PrimaryPillButton(
+                        text = "הוסף רכב",
+                        icon = Icons.Default.Add,
+                        onClick = onNavigateToAddVehicle,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             } else {
                 val listState = rememberLazyListState()
@@ -186,8 +166,9 @@ fun VehiclesScreen(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .simpleVerticalScrollbar(listState, MaterialTheme.colorScheme.onBackground)
-                        .padding(16.dp)
+                        .simpleVerticalScrollbar(listState, MaterialTheme.colorScheme.onBackground),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(vehicles) { vehicle ->
                         val isActive = activeVehicle?.id == vehicle.id
@@ -206,7 +187,6 @@ fun VehiclesScreen(
                                 null
                             }
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
             }
@@ -223,75 +203,70 @@ fun VehicleCard(
     onDelete: () -> Unit,
     onShare: (() -> Unit)? = null
 ) {
-    val cardInteractionSource = remember { MutableInteractionSource() }
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .pressScale(cardInteractionSource, scaleDown = 0.98f)
-            .border(
-                width = if (isActive) 2.dp else 0.dp,
-                color = if (isActive) MaterialTheme.colorScheme.secondary else Color.Transparent,
-                shape = RoundedCornerShape(16.dp)
-            )
-            .clickable(
-                interactionSource = cardInteractionSource,
-                indication = androidx.compose.foundation.LocalIndication.current
-            ) { onSelect() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isActive) MaterialTheme.colorScheme.surface 
-                             else MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isActive) 6.dp else 2.dp)
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    AppCard(
+        onClick = onSelect,
+        contentPadding = PaddingValues(start = 18.dp, end = 8.dp, top = 16.dp, bottom = 12.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             IconBadge(
                 icon = Icons.Default.DirectionsCar,
-                tint = if (isActive) MaterialTheme.colorScheme.secondary
-                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                modifier = Modifier.padding(end = 12.dp)
+                tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.padding(end = 14.dp)
             )
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = vehicle.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text = when {
-                        vehicle.isViewOnly -> "משותף · צפייה בלבד"
-                        vehicle.isShared -> "${vehicle.btName} · משותף"
-                        else -> vehicle.btName
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (vehicle.isShared) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (vehicle.isShared) Icons.Default.People else Icons.Default.Bluetooth,
+                        contentDescription = null,
+                        tint = muted,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = when {
+                            vehicle.isViewOnly -> "משותף · צפייה בלבד"
+                            vehicle.isShared -> "${vehicle.btName} · משותף"
+                            else -> vehicle.btName
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = muted
+                    )
+                }
             }
 
             if (isActive) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "פעיל",
-                    tint = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.padding(end = 8.dp)
+                Text(
+                    text = "פעיל",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 )
             }
+        }
 
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Quiet action row under the title — icons only, aligned to the end
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
             if (onShare != null) {
                 IconButton(onClick = onShare) {
                     Icon(
                         imageVector = if (vehicle.isShared) Icons.Default.People else Icons.Default.Share,
                         contentDescription = if (vehicle.isShared) "אפשרויות שיתוף" else "שתף רכב",
-                        tint = if (vehicle.isShared) MaterialTheme.colorScheme.primary
-                               else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        tint = if (vehicle.isShared) MaterialTheme.colorScheme.primary else muted
                     )
                 }
             }
@@ -300,7 +275,7 @@ fun VehicleCard(
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = "ערוך כינוי",
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    tint = muted
                 )
             }
 

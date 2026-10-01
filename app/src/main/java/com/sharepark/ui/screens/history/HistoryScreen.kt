@@ -4,33 +4,28 @@ import android.content.Intent
 import android.net.Uri
 import android.text.format.DateUtils
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.LocalParking
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,16 +33,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sharepark.domain.model.ParkingRecord
+import com.sharepark.ui.components.AppCard
 import com.sharepark.ui.components.IconBadge
+import com.sharepark.ui.components.ScreenHeader
+import com.sharepark.ui.components.SectionHeader
 import com.sharepark.ui.components.rememberBreathingScale
 import com.sharepark.ui.components.simpleVerticalScrollbar
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
     viewModel: HistoryViewModel = hiltViewModel()
@@ -57,28 +55,11 @@ fun HistoryScreen(
     val context = LocalContext.current
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            "היסטוריית חניות",
-                            fontWeight = FontWeight.Bold
-                        )
-                        activeVehicle?.let { vehicle ->
-                            Text(
-                                text = vehicle.name,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
+            ScreenHeader(
+                title = "היסטוריה",
+                subtitle = activeVehicle?.name
             )
         }
     ) { padding ->
@@ -88,54 +69,28 @@ fun HistoryScreen(
                 .padding(padding)
         ) {
             if (activeVehicle == null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "אנא הגדר רכב פעיל במסך 'רכבים' כדי לראות את ההיסטוריה שלו.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                    )
-                }
+                EmptyHistory(
+                    title = "אין רכב פעיל",
+                    message = "הגדר רכב פעיל במסך 'רכבים' כדי לראות את ההיסטוריה שלו."
+                )
             } else if (parkingHistory.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val breathingScale = rememberBreathingScale()
-                        IconBadge(
-                            icon = Icons.Default.History,
-                            tint = MaterialTheme.colorScheme.primary,
-                            size = 72.dp,
-                            iconSize = 34.dp,
-                            modifier = Modifier
-                                .padding(bottom = 16.dp)
-                                .scale(breathingScale)
-                        )
-                        Text(
-                            text = "אין היסטוריית חניות שמורה עבור ${activeVehicle?.name}.\nמיקומים ישמרו אוטומטית בעתיד.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                        )
-                    }
-                }
+                EmptyHistory(
+                    title = "עוד אין חניות",
+                    message = "אין היסטוריית חניות שמורה עבור ${activeVehicle?.name}. מיקומים יישמרו אוטומטית בעתיד."
+                )
             } else {
                 val listState = rememberLazyListState()
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .simpleVerticalScrollbar(listState, MaterialTheme.colorScheme.onBackground)
-                        .padding(16.dp)
+                        .simpleVerticalScrollbar(listState, MaterialTheme.colorScheme.onBackground),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    item {
+                        SectionHeader(title = "${parkingHistory.size} חניות")
+                    }
                     items(parkingHistory) { record ->
                         HistoryCard(
                             record = record,
@@ -148,7 +103,6 @@ fun HistoryScreen(
                                 context.startActivity(mapIntent)
                             }
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
             }
@@ -157,84 +111,105 @@ fun HistoryScreen(
 }
 
 @Composable
+private fun EmptyHistory(title: String, message: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 28.dp),
+        verticalArrangement = Arrangement.Center
+    ) {
+        val breathingScale = rememberBreathingScale()
+        IconBadge(
+            icon = Icons.Default.History,
+            tint = MaterialTheme.colorScheme.primary,
+            size = 64.dp,
+            iconSize = 30.dp,
+            modifier = Modifier
+                .padding(bottom = 20.dp)
+                .scale(breathingScale)
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineLarge,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
 fun HistoryCard(
     record: ParkingRecord,
     onNavigate: (Double, Double) -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-        )
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    AppCard(
+        onClick = { onNavigate(record.latitude, record.longitude) },
+        contentPadding = PaddingValues(start = 18.dp, end = 12.dp, top = 16.dp, bottom = 16.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconBadge(
-                icon = Icons.Default.LocalParking,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 12.dp)
-            )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // Date column — month over day, like a logbook entry
+            val date = Date(record.parkedAt)
+            Column(
+                modifier = Modifier.width(48.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = SimpleDateFormat("MMM", Locale.getDefault()).format(date),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
+                )
+                Text(
+                    text = SimpleDateFormat("d", Locale.getDefault()).format(date),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = record.address ?: "מיקום ללא כתובת",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+
                 val timeString = DateUtils.getRelativeTimeSpanString(
                     record.parkedAt,
                     System.currentTimeMillis(),
                     DateUtils.MINUTE_IN_MILLIS
                 ).toString()
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = timeString,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    if (record.vehicleName.isNotBlank()) {
-                        Text(
-                            text = " • ${record.vehicleName}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    }
-                    record.parkedByName?.let { parkedBy ->
-                        Text(
-                            text = " • $parkedBy",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
+                val details = buildList {
+                    add(timeString)
+                    if (record.vehicleName.isNotBlank()) add(record.vehicleName)
+                    record.parkedByName?.let { add(it) }
+                    add("±${record.accuracy.toInt()} מ׳")
                 }
                 Text(
-                    text = record.address ?: "מיקום ללא כתובת",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "דיוק: ${record.accuracy.toInt()} מטרים",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    text = details.joinToString("  ·  "),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = muted
                 )
             }
 
-            IconButton(
-                onClick = { onNavigate(record.latitude, record.longitude) },
-                modifier = Modifier.background(
-                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(8.dp)
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Directions,
-                    contentDescription = "ניווט",
-                    tint = MaterialTheme.colorScheme.secondary
-                )
-            }
+            Icon(
+                imageVector = Icons.Default.Directions,
+                contentDescription = "ניווט",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .size(40.dp)
+                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                    .padding(9.dp)
+            )
         }
     }
 }

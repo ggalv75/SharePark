@@ -18,8 +18,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -45,8 +46,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -78,7 +77,9 @@ import com.google.maps.android.compose.rememberCameraPositionState
 import com.sharepark.domain.model.AutomationZone
 import com.sharepark.platform.location.LocationHelper
 import com.sharepark.platform.permissions.PermissionManager
+import com.sharepark.ui.components.CircleIconButton
 import com.sharepark.ui.components.IconBadge
+import com.sharepark.ui.components.ScreenHeader
 import kotlin.math.cos
 import kotlin.math.roundToInt
 
@@ -208,21 +209,16 @@ fun AutomationZonesScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("אזורי אוטומציה", fontWeight = FontWeight.Bold) },
+            ScreenHeader(
+                title = "אזורי אוטומציה",
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "חזור",
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
+                    CircleIconButton(
+                        icon = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "חזור",
+                        onClick = onNavigateBack,
+                        size = 44.dp
+                    )
+                }
             )
         }
     ) { padding ->
@@ -336,6 +332,7 @@ fun AutomationZonesScreen(
                 )
 
                 FloatingActionButton(
+                    shape = CircleShape,
                     onClick = { isMapFullScreen = true },
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -472,7 +469,7 @@ private fun MapHintChip(isEditing: Boolean, modifier: Modifier = Modifier) {
             .padding(12.dp)
             .background(
                 MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                RoundedCornerShape(12.dp)
+                MaterialTheme.shapes.small
             )
             .padding(horizontal = 12.dp, vertical = 6.dp)
     )
@@ -533,11 +530,11 @@ private fun FullScreenZoneMap(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(16.dp),
-                shape = RoundedCornerShape(20.dp),
+                shape = MaterialTheme.shapes.medium,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
                 ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -603,7 +600,7 @@ private fun ZoneEditorCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -711,7 +708,7 @@ private fun ZonesOnlySwitchCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -759,7 +756,7 @@ private fun ZoneRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = if (isEditing) {
                 MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
