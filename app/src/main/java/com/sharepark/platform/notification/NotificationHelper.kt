@@ -18,6 +18,8 @@ object NotificationHelper {
 
     const val SERVICE_NOTIFICATION_ID = 1001
     private const val EVENT_NOTIFICATION_ID = 2002
+    // One slot per shared car, so two cars parked by others don't replace each other.
+    private const val SHARED_NOTIFICATION_ID_BASE = 3000
 
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -115,5 +117,38 @@ object NotificationHelper {
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(EVENT_NOTIFICATION_ID, notification)
+    }
+
+    /** Another member of a shared car just parked it. */
+    fun showSharedParkingNotification(
+        context: Context,
+        vehicleId: Long,
+        vehicleName: String,
+        parkedByName: String,
+        address: String
+    ) {
+        createNotificationChannels(context)
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            putExtra(MainActivity.EXTRA_VEHICLE_ID, vehicleId)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            vehicleId.toInt(),
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_EVENTS_ID)
+            .setContentTitle("$parkedByName החנה את $vehicleName 🅿️")
+            .setContentText(address)
+            .setSmallIcon(android.R.drawable.ic_dialog_map)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(SHARED_NOTIFICATION_ID_BASE + vehicleId.toInt(), notification)
     }
 }

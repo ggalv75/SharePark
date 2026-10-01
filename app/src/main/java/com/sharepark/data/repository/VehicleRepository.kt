@@ -26,6 +26,31 @@ class VehicleRepository @Inject constructor(
         return vehicleDao.getVehicleByBtAddress(address)?.toDomain()
     }
 
+    /** Cars linked to a shared cloud vehicle, i.e. the ones whose parkings are synced. */
+    val linkedVehicles: Flow<List<Vehicle>> = vehicleDao.getLinkedVehicles().map { entities ->
+        entities.map { it.toDomain() }
+    }
+
+    suspend fun getLinkedVehicles(): List<Vehicle> =
+        vehicleDao.getLinkedVehiclesOnce().map { it.toDomain() }
+
+    suspend fun getVehicleByCloudId(cloudId: String): Vehicle? =
+        vehicleDao.getVehicleByCloudId(cloudId)?.toDomain()
+
+    suspend fun setCloudId(vehicleId: Long, cloudId: String?) {
+        vehicleDao.setCloudId(vehicleId, cloudId)
+    }
+
+    /** A shared car this phone only watches — no Bluetooth device, so it's never detected here. */
+    suspend fun insertViewOnlyVehicle(name: String, cloudId: String): Long {
+        val entity = VehicleEntity(name = name, btAddress = "", btName = "", cloudId = cloudId)
+        val id = vehicleDao.insert(entity)
+        if (vehicleDao.getVehicleCount() == 1) {
+            vehicleDao.setActiveVehicleTransaction(id)
+        }
+        return id
+    }
+
     suspend fun insertVehicle(name: String, btAddress: String, btName: String): Long {
         val entity = VehicleEntity(name = name, btAddress = btAddress, btName = btName)
         val id = vehicleDao.insert(entity)
@@ -53,7 +78,8 @@ class VehicleRepository @Inject constructor(
         btAddress = btAddress,
         btName = btName,
         isActive = isActive,
-        createdAt = createdAt
+        createdAt = createdAt,
+        cloudId = cloudId
     )
 
     private fun Vehicle.toEntity() = VehicleEntity(
@@ -62,6 +88,7 @@ class VehicleRepository @Inject constructor(
         btAddress = btAddress,
         btName = btName,
         isActive = isActive,
-        createdAt = createdAt
+        createdAt = createdAt,
+        cloudId = cloudId
     )
 }

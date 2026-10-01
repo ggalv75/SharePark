@@ -8,6 +8,13 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Shared vehicles need a Firebase project. Its config (google-services.json) is per developer
+// and git-ignored, so the plugin is applied only when the file is present. Without it the app
+// still builds and runs; the cloud features just report themselves as unavailable.
+if (file("google-services.json").exists()) {
+    apply(plugin = libs.plugins.google.services.get().pluginId)
+}
+
 val localProperties = Properties().apply {
     val localPropertiesFile = rootProject.file("local.properties")
     if (localPropertiesFile.exists()) {
@@ -109,6 +116,14 @@ dependencies {
 
     // DataStore
     implementation(libs.datastore.preferences)
+
+    // Firebase + Google sign-in
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
+    implementation(libs.googleid)
 
     // Testing
     testImplementation(libs.junit)

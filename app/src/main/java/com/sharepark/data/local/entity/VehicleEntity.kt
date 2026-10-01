@@ -13,5 +13,7 @@ data class VehicleEntity(
     @ColumnInfo(name = "bt_name") val btName: String,
     @ColumnInfo(name = "is_active") val isActive: Boolean = false,
     @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
-    @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis()
+    @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
+    /** Firestore id of the shared vehicle this car is linked to; null while it's private. */
+    @ColumnInfo(name = "cloud_id") val cloudId: String? = null
 )

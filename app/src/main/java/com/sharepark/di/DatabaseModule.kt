@@ -95,6 +95,19 @@ private val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
+/** Shared vehicles: a local car can be linked to a cloud one, and parkings carry their cloud id. */
+private val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `vehicles` ADD COLUMN `cloud_id` TEXT")
+        db.execSQL("ALTER TABLE `parking_records` ADD COLUMN `remote_key` TEXT")
+        db.execSQL("ALTER TABLE `parking_records` ADD COLUMN `parked_by_name` TEXT")
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_parking_records_remote_key` " +
+                "ON `parking_records` (`remote_key`)"
+        )
+    }
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
@@ -107,7 +120,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
         )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .fallbackToDestructiveMigration()
             .build()
     }

@@ -64,6 +64,40 @@ class ParkingRepository @Inject constructor(
         return parkingRecordDao.insertAndSetCurrent(entity)
     }
 
+    suspend fun getCurrentParkingOnce(vehicleId: Long): ParkingRecord? {
+        val record = parkingRecordDao.getCurrentParkingOnce(vehicleId) ?: return null
+        val vehicle = vehicleDao.getVehicleById(vehicleId)
+        return record.toDomain(vehicle?.name ?: "Unknown")
+    }
+
+    suspend fun setRemoteKey(recordId: Long, remoteKey: String) {
+        parkingRecordDao.setRemoteKey(recordId, remoteKey)
+    }
+
+    /** See [ParkingRecordDao.insertSynced] for the meaning of the result. */
+    suspend fun insertSyncedParking(
+        vehicleId: Long,
+        remoteKey: String,
+        latitude: Double,
+        longitude: Double,
+        accuracy: Float,
+        address: String?,
+        parkedAt: Long,
+        parkedByName: String?
+    ): Boolean? = parkingRecordDao.insertSynced(
+        ParkingRecordEntity(
+            vehicleId = vehicleId,
+            latitude = latitude,
+            longitude = longitude,
+            accuracy = accuracy,
+            address = address,
+            mapUrl = "https://www.google.com/maps/search/?api=1&query=$latitude,$longitude",
+            parkedAt = parkedAt,
+            remoteKey = remoteKey,
+            parkedByName = parkedByName
+        )
+    )
+
     suspend fun updateAddress(recordId: Long, address: String) {
         parkingRecordDao.updateAddress(recordId, address)
     }
@@ -86,6 +120,7 @@ class ParkingRepository @Inject constructor(
         address = address,
         mapUrl = mapUrl,
         isCurrent = isCurrent,
-        parkedAt = parkedAt
+        parkedAt = parkedAt,
+        parkedByName = parkedByName
     )
 }

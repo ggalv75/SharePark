@@ -6,8 +6,14 @@ data class Vehicle(
     val btAddress: String,
     val btName: String,
     val isActive: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis()
-)
+    val createdAt: Long = System.currentTimeMillis(),
+    val cloudId: String? = null
+) {
+    val isShared: Boolean get() = cloudId != null
+
+    /** A shared car added without its Bluetooth device: this phone views it but never detects it. */
+    val isViewOnly: Boolean get() = btAddress.isBlank()
+}
 
 data class ParkingRecord(
     val id: Long = 0,
@@ -19,7 +25,8 @@ data class ParkingRecord(
     val address: String? = null,
     val mapUrl: String,
     val isCurrent: Boolean = true,
-    val parkedAt: Long = System.currentTimeMillis()
+    val parkedAt: Long = System.currentTimeMillis(),
+    val parkedByName: String? = null
 )
 
 data class TrustedContact(

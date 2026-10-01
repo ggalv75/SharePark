@@ -364,8 +364,10 @@ fun MapContent(
                                     DateUtils.MINUTE_IN_MILLIS
                                 ).toString()
 
+                                // Shared cars: say who parked it, when it wasn't this phone.
+                                val parkedBy = parking.parkedByName?.let { " · $it" }.orEmpty()
                                 Text(
-                                    text = "חנה: $timeString",
+                                    text = "חנה: $timeString$parkedBy",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.SemiBold

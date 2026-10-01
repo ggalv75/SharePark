@@ -3,6 +3,7 @@ package com.sharepark
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.*
+import com.sharepark.platform.sync.SharedParkingSync
 import com.sharepark.platform.worker.CleanupWorker
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.TimeUnit
@@ -12,6 +13,7 @@ import javax.inject.Inject
 class ShareParkApp : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
+    @Inject lateinit var sharedParkingSync: SharedParkingSync
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -21,6 +23,7 @@ class ShareParkApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         scheduleCleanupWorker()
+        sharedParkingSync.start()
     }
 
     private fun scheduleCleanupWorker() {

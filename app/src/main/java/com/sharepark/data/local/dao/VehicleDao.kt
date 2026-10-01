@@ -16,6 +16,18 @@ interface VehicleDao {
     @Query("SELECT * FROM vehicles WHERE bt_address = :address LIMIT 1")
     suspend fun getVehicleByBtAddress(address: String): VehicleEntity?
 
+    @Query("SELECT * FROM vehicles WHERE cloud_id = :cloudId LIMIT 1")
+    suspend fun getVehicleByCloudId(cloudId: String): VehicleEntity?
+
+    @Query("SELECT * FROM vehicles WHERE cloud_id IS NOT NULL")
+    fun getLinkedVehicles(): Flow<List<VehicleEntity>>
+
+    @Query("SELECT * FROM vehicles WHERE cloud_id IS NOT NULL")
+    suspend fun getLinkedVehiclesOnce(): List<VehicleEntity>
+
+    @Query("UPDATE vehicles SET cloud_id = :cloudId WHERE id = :vehicleId")
+    suspend fun setCloudId(vehicleId: Long, cloudId: String?)
+
     @Query("SELECT * FROM vehicles WHERE is_active = 1 LIMIT 1")
     fun getActiveVehicle(): Flow<VehicleEntity?>
 

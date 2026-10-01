@@ -1,0 +1,96 @@
+rules_version = '2';
+
+// Shared vehicles. Deploy with:  firebase deploy --only firestore:rules
+//
+//   vehicles/{vehicleId}                  name, ownerUid, memberUids[], createdAt, joinCode
+//   vehicles/{vehicleId}/parkings/{key}   one per parking, written by the member who parked
+//   invites/{code}                        vehicleId, createdBy, expiresAt
+//
+// A car and its parkings are visible only to its members. Joining works without server code:
+// the joiner adds exactly their own uid and names a live invite for this car in the same write.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function vehicleDoc(vehicleId) {
+      return get(/databases/$(database)/documents/vehicles/$(vehicleId));
+    }
+
+    function isMember(vehicleId) {
+      return signedIn() && request.auth.uid in vehicleDoc(vehicleId).data.memberUids;
+    }
+
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    function newMembers() {
+      return request.resource.data.memberUids.toSet();
+    }
+
+    function oldMembers() {
+      return resource.data.memberUids.toSet();
+    }
+
+    // The joiner adds themself and nobody else, citing an unexpired invite for this very car.
+    function isValidJoin(vehicleId) {
+      let invite = get(/databases/$(database)/documents/invites/$(request.resource.data.joinCode));
+      return onlyChanges(['memberUids', 'joinCode'])
+        && newMembers() == oldMembers().union([request.auth.uid].toSet())
+        && invite.data.vehicleId == vehicleId
+        && invite.data.expiresAt > request.time;
+    }
+
+    // A member removes themself and nobody else.
+    function isLeaving() {
+      return onlyChanges(['memberUids'])
+        && request.auth.uid in oldMembers()
+        && newMembers() == oldMembers().difference([request.auth.uid].toSet());
+    }
+
+    match /vehicles/{vehicleId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
+
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.memberUids == [request.auth.uid]
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 100;
+
+      allow update: if signedIn() && (isValidJoin(vehicleId) || isLeaving());
+
+      // Only the last member out, which is how the app cleans up.
+      allow delete: if signedIn() && resource.data.memberUids == [request.auth.uid];
+
+      match /parkings/{parkingId} {
+        allow read, delete: if isMember(vehicleId);
+
+        allow create: if isMember(vehicleId)
+          && request.resource.data.parkedByUid == request.auth.uid
+          && request.resource.data.latitude is number
+          && request.resource.data.longitude is number
+          && request.resource.data.parkedAt is int;
+
+        allow update: if false;
+      }
+    }
+
+    match /invites/{code} {
+      // Knowing the code is the grant, so single reads are open to any signed-in user,
+      // but listing (enumerating codes) is not.
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && isMember(request.resource.data.vehicleId)
+        && request.resource.data.expiresAt is timestamp;
+
+      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+      allow update: if false;
+    }
+  }
+}

@@ -39,3 +39,6 @@ keystore.properties
 *.log
 .DS_Store
 Thumbs.db
+
+# Firebase project config — per developer, see README
+app/google-services.json

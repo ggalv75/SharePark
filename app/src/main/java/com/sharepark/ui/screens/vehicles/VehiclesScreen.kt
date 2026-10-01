@@ -23,6 +23,9 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.GroupAdd
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -47,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -67,7 +71,33 @@ fun VehiclesScreen(
 ) {
     val vehicles by viewModel.vehicles.collectAsState()
     val activeVehicle by viewModel.activeVehicle.collectAsState()
+    val sharingState by viewModel.sharingState.collectAsState()
+    val context = LocalContext.current
     var vehicleBeingRenamed by remember { mutableStateOf<Vehicle?>(null) }
+    var sharedVehicleOptions by remember { mutableStateOf<Vehicle?>(null) }
+
+    SharingDialogs(
+        state = sharingState,
+        onDismiss = viewModel::dismissSharing,
+        onSignIn = { viewModel.signIn(context) },
+        onJoin = viewModel::joinWithCode,
+        onCompleteJoin = viewModel::completeJoin
+    )
+
+    sharedVehicleOptions?.let { vehicle ->
+        SharedVehicleOptionsDialog(
+            vehicle = vehicle,
+            onInvite = {
+                sharedVehicleOptions = null
+                viewModel.shareVehicle(vehicle)
+            },
+            onStopSharing = {
+                sharedVehicleOptions = null
+                viewModel.stopSharing(vehicle)
+            },
+            onDismiss = { sharedVehicleOptions = null }
+        )
+    }
 
     vehicleBeingRenamed?.let { vehicle ->
         RenameVehicleDialog(
@@ -88,6 +118,17 @@ fun VehiclesScreen(
                         "הרכבים שלי",
                         fontWeight = FontWeight.Bold
                     )
+                },
+                actions = {
+                    if (viewModel.isSharingAvailable) {
+                        IconButton(onClick = viewModel::startJoin) {
+                            Icon(
+                                Icons.Default.GroupAdd,
+                                contentDescription = "הצטרפות לרכב משותף",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
@@ -155,7 +196,15 @@ fun VehiclesScreen(
                             isActive = isActive,
                             onSelect = { viewModel.setActiveVehicle(vehicle.id) },
                             onEdit = { vehicleBeingRenamed = vehicle },
-                            onDelete = { viewModel.deleteVehicle(vehicle) }
+                            onDelete = { viewModel.deleteVehicle(vehicle) },
+                            onShare = if (viewModel.isSharingAvailable) {
+                                {
+                                    if (vehicle.isShared) sharedVehicleOptions = vehicle
+                                    else viewModel.shareVehicle(vehicle)
+                                }
+                            } else {
+                                null
+                            }
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                     }
@@ -171,7 +220,8 @@ fun VehicleCard(
     isActive: Boolean,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onShare: (() -> Unit)? = null
 ) {
     val cardInteractionSource = remember { MutableInteractionSource() }
     Card(
@@ -215,9 +265,14 @@ fun VehicleCard(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = vehicle.btName,
+                    text = when {
+                        vehicle.isViewOnly -> "משותף · צפייה בלבד"
+                        vehicle.isShared -> "${vehicle.btName} · משותף"
+                        else -> vehicle.btName
+                    },
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    color = if (vehicle.isShared) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
 
@@ -228,6 +283,17 @@ fun VehicleCard(
                     tint = MaterialTheme.colorScheme.tertiary,
                     modifier = Modifier.padding(end = 8.dp)
                 )
+            }
+
+            if (onShare != null) {
+                IconButton(onClick = onShare) {
+                    Icon(
+                        imageVector = if (vehicle.isShared) Icons.Default.People else Icons.Default.Share,
+                        contentDescription = if (vehicle.isShared) "אפשרויות שיתוף" else "שתף רכב",
+                        tint = if (vehicle.isShared) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
             }
 
             IconButton(onClick = onEdit) {

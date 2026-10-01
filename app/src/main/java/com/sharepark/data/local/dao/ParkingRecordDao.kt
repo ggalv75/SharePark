@@ -43,6 +43,31 @@ interface ParkingRecordDao {
         return insert(record)
     }
 
+    @Query("SELECT * FROM parking_records WHERE remote_key = :remoteKey LIMIT 1")
+    suspend fun getByRemoteKey(remoteKey: String): ParkingRecordEntity?
+
+    @Query("UPDATE parking_records SET remote_key = :remoteKey WHERE id = :recordId")
+    suspend fun setRemoteKey(recordId: Long, remoteKey: String)
+
+    /**
+     * Stores a parking that arrived from the shared vehicle's cloud history. Returns null if it
+     * is already here, true if it became the car's current spot, false if it's an older one
+     * that only belongs in the history (listeners don't deliver in parking order).
+     */
+    @Transaction
+    suspend fun insertSynced(record: ParkingRecordEntity): Boolean? {
+        val key = record.remoteKey ?: return null
+        if (getByRemoteKey(key) != null) return null
+        val current = getCurrentParkingOnce(record.vehicleId)
+        return if (current == null || record.parkedAt > current.parkedAt) {
+            insertAndSetCurrent(record.copy(isCurrent = true))
+            true
+        } else {
+            insert(record.copy(isCurrent = false))
+            false
+        }
+    }
+
     @Query("UPDATE parking_records SET address = :address WHERE id = :recordId")
     suspend fun updateAddress(recordId: Long, address: String)
 

@@ -21,7 +21,7 @@ import com.sharepark.data.local.entity.VehicleEntity
         AutomationRuleEntity::class,
         AutomationZoneEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

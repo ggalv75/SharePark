@@ -202,6 +202,13 @@ fun HistoryCard(
                             color = MaterialTheme.colorScheme.secondary
                         )
                     }
+                    record.parkedByName?.let { parkedBy ->
+                        Text(
+                            text = " • $parkedBy",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
                 }
                 Text(
                     text = record.address ?: "מיקום ללא כתובת",

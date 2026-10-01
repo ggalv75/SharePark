@@ -15,9 +15,11 @@ import android.util.Log
 import com.sharepark.data.local.prefs.AutomationPreferences
 import com.sharepark.data.repository.AutomationRuleRepository
 import com.sharepark.data.repository.AutomationZoneRepository
+import com.sharepark.data.repository.ParkingRepository
 import com.sharepark.data.repository.VehicleRepository
 import com.sharepark.data.repository.contains
 import com.sharepark.data.repository.distanceTo
+import com.sharepark.domain.usecase.PublishSharedParkingUseCase
 import com.sharepark.domain.usecase.SaveParkingUseCase
 import com.sharepark.domain.usecase.ShareLocationUseCase
 import com.sharepark.platform.automation.AutomationStatusStore
@@ -45,6 +47,8 @@ class ParkingDetectionService : Service() {
     @Inject lateinit var vehicleRepository: VehicleRepository
     @Inject lateinit var saveParkingUseCase: SaveParkingUseCase
     @Inject lateinit var shareLocationUseCase: ShareLocationUseCase
+    @Inject lateinit var publishSharedParkingUseCase: PublishSharedParkingUseCase
+    @Inject lateinit var parkingRepository: ParkingRepository
     @Inject lateinit var automationPreferences: AutomationPreferences
     @Inject lateinit var automationRuleRepository: AutomationRuleRepository
     @Inject lateinit var automationZoneRepository: AutomationZoneRepository
@@ -139,7 +143,14 @@ class ParkingDetectionService : Service() {
                 shareText = shareText
             )
 
-            // 5. WhatsApp automation: each vehicle has its own target chat, so look up
+            // 5. Shared car: put the parking in the cloud so the other members see it live.
+            if (vehicle?.isShared == true) {
+                parkingRepository.getCurrentParkingOnce(vehicleId)
+                    ?.takeIf { it.id == saveResult.recordId }
+                    ?.let { publishSharedParkingUseCase(vehicle, it) }
+            }
+
+            // 6. WhatsApp automation: each vehicle has its own target chat, so look up
             // the rule for the car that just parked.
             runAutomation(
                 vehicleId = vehicleId,

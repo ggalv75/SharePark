@@ -73,6 +73,7 @@ working detection and a crash loop on real hardware.
 | 🎯 **Automation zones** | Mark addresses on the map with a radius each; the automated message only fires for parkings inside one of them. |
 | 🔒 **Deferred send** | If the phone is locked when you park, the message is queued and sent the moment you unlock. |
 | 👥 **Trusted contacts** | Saved recipients for quick manual sharing. |
+| 🤝 **Shared vehicles** | Several people share one car and all see, live, where it was last parked and by whom. |
 | 🔁 **Survives reboot** | The Bluetooth receiver is declared in the manifest, so detection keeps working after a restart or app update; `BootReceiver` recreates the notification channels. |
 | 🌐 **RTL-first** | Hebrew UI with full right-to-left layout support. |
 
@@ -108,6 +109,32 @@ falls inside an enabled zone — the smallest matching one wins, so a tight circ
 a wider one is the one reported. With no zones defined the gate is inert and automation runs
 everywhere, so enabling the option can never silently switch the feature off.
 
+## Shared vehicles
+
+A car can be shared between several people. Say Shani and Yoav drive the same car: whoever
+parks it, the other sees the new spot on their map within seconds, with a notification naming
+who parked.
+
+- **Accounts.** Sharing needs a Google sign-in (**Settings → account**). Nothing else in the app
+  does. Firebase Auth handles the account and Firestore holds the shared data.
+- **Share.** On the vehicles screen, the share button on a car creates its cloud copy and an
+  8-character invite code, valid for 48 hours.
+- **Join.** The other person taps **join** in the vehicles screen's top bar and enters the code.
+  If they already registered the same car with its Bluetooth, they link to it and their phone
+  detects parkings too. If not, they add it as **view-only**: they see where it is, but their
+  phone never detects it.
+- **Sync.** A detected parking on a shared car is uploaded to
+  `vehicles/{id}/parkings`. `SharedParkingSync` listens to every shared car and writes incoming
+  parkings into the same Room tables, so the map, history and notifications need no special
+  handling. Each parking carries a key so a phone doesn't re-import its own upload.
+- **Access control.** [`firestore.rules`](firestore.rules) limits a car and its parkings to its
+  members. Joining needs no server code: the joiner may only add their own uid, and only while
+  citing an unexpired invite for that car. The last member to leave deletes the car and its
+  history.
+
+"Live" means the parking spot, not live tracking while driving. The cloud keeps the same 30-day
+history as the device.
+
 ## Architecture
 
 Clean Architecture over MVVM, with a strict one-way dependency flow:
@@ -125,7 +152,7 @@ domain/      Framework-free business logic
 
 data/        Persistence and remote access
   ├── local/         Room database (v5), DAOs, entities, DataStore prefs
-  ├── remote/        Retrofit Geocoding client
+  ├── remote/        Retrofit Geocoding client; cloud/ = Firebase auth + shared vehicles
   └── repository/    single source of truth per aggregate
 
 platform/    Android framework integration
@@ -133,6 +160,7 @@ platform/    Android framework integration
   ├── service/       ParkingDetectionService, BootReceiver
   ├── location/      fused location access
   ├── automation/    WhatsApp accessibility service + pending-send store
+  ├── sync/          SharedParkingSync — cloud parkings of shared cars → Room
   ├── notification/  channels, actions, share trampoline
   ├── permissions/   runtime permission orchestration
   └── worker/        WorkManager cleanup job
@@ -155,6 +183,7 @@ pipeline testable in isolation from Compose.
 | Async | Coroutines 1.9.0 + Flow |
 | Maps | Maps Compose 6.1.0, Play Services Maps & Location |
 | Networking | Retrofit 2.11.0 + Gson, OkHttp logging |
+| Cloud (shared vehicles) | Firebase Auth + Firestore (BoM 33.5.1), Credential Manager for Google sign-in |
 | Background | WorkManager 2.9.1, foreground services |
 | Build | Gradle KTS, AGP 8.5.2, version catalog, KSP |
 
@@ -195,6 +224,24 @@ It rejects any commit that would stage `local.properties`, a signing keystore, o
 `AIzaSy…` literal. CI enforces the same rule on `main`. See [SECURITY.md](SECURITY.md) for the
 full key-handling model, including how to restrict the key in the Google Cloud Console.
 
+### Firebase (optional, for shared vehicles)
+
+Without this the app builds and runs normally; the account card and the share/join buttons
+simply don't appear.
+
+1. Create a project in the [Firebase console](https://console.firebase.google.com) and add an
+   Android app with package name `com.sharepark`.
+2. Add your debug SHA-1 under the app's settings (needed for Google sign-in):
+   `./gradlew signingReport`.
+3. **Authentication → Sign-in method**: enable **Google**.
+4. **Firestore Database**: create a database.
+5. Download `google-services.json` into `app/`. It is git-ignored like `local.properties`.
+6. Deploy the security rules (needs the [Firebase CLI](https://firebase.google.com/docs/cli)):
+
+```bash
+firebase deploy --only firestore:rules --project <your-project-id>
+```
+
 ### Build
 
 ```bash
@@ -226,11 +273,15 @@ full key-handling model, including how to restrict the key in the Google Cloud C
 
 ## Privacy
 
-Parking history lives in a local Room database on the device. There is no backend, no
-analytics, and no account. The only outbound network call is reverse geocoding to Google, which
-receives a coordinate pair and returns an address. Location is shared exactly once per parking
-event, to the recipient you configured yourself. Records older than 30 days are deleted
-automatically.
+Parking history lives in a local Room database on the device. There is no analytics. For a
+private car the only outbound network call is reverse geocoding to Google, which receives a
+coordinate pair and returns an address. Location is shared exactly once per parking event, to
+the recipient you configured yourself. Records older than 30 days are deleted automatically.
+
+A car you choose to share is the exception. Its parkings (coordinates, address, time, and the
+name of whoever parked) are stored in Firestore, where only its members can read them. That
+requires a Google account, and the cloud copy follows the same 30-day limit. Stop sharing, and
+the last member out deletes the car's cloud data.
 
 ## Roadmap
 
@@ -240,6 +291,8 @@ automatically.
 - [ ] Parking-duration tracking and meter-expiry reminders
 - [ ] Photo attachment for the parking spot (level, bay number)
 - [ ] Wear OS companion tile
+- [ ] iOS app for shared vehicles (view + manual parking; iOS can't detect a car's Bluetooth disconnect in the background)
+- [ ] Push notifications for shared parkings while the app is closed (Cloud Function → FCM)
 
 ## License
 
