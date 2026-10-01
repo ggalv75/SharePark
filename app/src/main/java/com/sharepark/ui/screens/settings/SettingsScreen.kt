@@ -66,6 +66,9 @@ fun SettingsScreen(
     val activeVehicle by viewModel.activeVehicle.collectAsState()
     val scrollState = rememberScrollState()
     
+    val currentUser by viewModel.currentUser.collectAsState()
+    val accountError by viewModel.accountError.collectAsState()
+
     var batteryIgnored by remember {
         mutableStateOf(viewModel.isIgnoringBatteryOptimizations(context))
     }
@@ -94,6 +97,16 @@ fun SettingsScreen(
                 .padding(16.dp)
                 .verticalScroll(scrollState)
         ) {
+            if (viewModel.isAccountAvailable) {
+                AccountCard(
+                    user = currentUser,
+                    error = accountError,
+                    onSignIn = { viewModel.signIn(context) },
+                    onSignOut = viewModel::signOut
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+
             // Background running configurations
             Card(
                 modifier = Modifier.fillMaxWidth(),

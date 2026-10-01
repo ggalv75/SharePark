@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">SharePark</string>
-    <string name="title_activity_main">MainActivity</string>
-    <string name="wa_auto_service_desc">מאפשר ל-SharePark לשלוח אוטומטית את מיקום החנייה ב-WhatsApp לאיש הקשר שהגדרתם, מיד כשמזוהה חנייה. השירות פועל אך ורק בתוך WhatsApp ורק לצורך לחיצה על כפתור השליחה עבורכם.</string>
+    <!-- Default for non-Hebrew devices; the manifest's accessibility config references it, so it must exist here. -->
+    <string name="wa_auto_service_desc">Lets SharePark send your parking location on WhatsApp to the contact you chose, as soon as a parking is detected. It acts only inside WhatsApp, and only to press the send button for you.</string>
 </resources>

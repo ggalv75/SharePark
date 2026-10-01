@@ -10,13 +10,18 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sharepark.data.remote.cloud.AuthRepository
+import com.sharepark.data.remote.cloud.CloudUser
+import com.sharepark.data.remote.cloud.SignInResult
 import com.sharepark.data.repository.VehicleRepository
 import com.sharepark.domain.model.Vehicle
 import com.sharepark.platform.service.ParkingDetectionService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -24,23 +29,45 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val vehicleRepository: VehicleRepository,
+    private val authRepository: AuthRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     val activeVehicle: StateFlow<Vehicle?> = vehicleRepository.activeVehicle
         .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
+    // ── Account (shared vehicles) ───────────────────────────────────────────
+
+    val isAccountAvailable: Boolean = authRepository.isAvailable
+
+    val currentUser: StateFlow<CloudUser?> = authRepository.currentUser
+        .stateIn(viewModelScope, SharingStarted.Eagerly, authRepository.currentUserNow())
+
+    private val _accountError = MutableStateFlow<String?>(null)
+    val accountError: StateFlow<String?> = _accountError.asStateFlow()
+
+    /** [activityContext] must be the Activity: Google's account picker is drawn over it. */
+    fun signIn(activityContext: Context) {
+        _accountError.value = null
+        viewModelScope.launch {
+            val result = authRepository.signInWithGoogle(activityContext)
+            if (result is SignInResult.Failure) _accountError.value = result.message
+        }
+    }
+
+    fun signOut() {
+        viewModelScope.launch { authRepository.signOut() }
+    }
+
     fun simulateParkingDisconnect() {
         val vehicle = activeVehicle.value ?: return
+        // A view-only shared car isn't in this phone's Bluetooth, so there's nothing to simulate.
+        if (vehicle.isViewOnly) return
         val serviceIntent = Intent(context, ParkingDetectionService::class.java).apply {
             putExtra("bt_address", vehicle.btAddress)
             putExtra("vehicle_id", vehicle.id)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            context.startForegroundService(serviceIntent)
-        } else {
-            context.startForegroundService(serviceIntent)
-        }
+        context.startForegroundService(serviceIntent)
     }
 
     fun isIgnoringBatteryOptimizations(context: Context): Boolean {

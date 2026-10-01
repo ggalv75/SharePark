@@ -33,8 +33,19 @@ jobs:
           MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: echo "MAPS_API_KEY=$MAPS_API_KEY" > local.properties
 
+      # Optional Firebase config for shared vehicles. Without it the build skips the
+      # google-services plugin and the app ships with the cloud features hidden.
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        if: env.GOOGLE_SERVICES_JSON != ''
+        run: echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+
       - name: Assemble debug
         run: ./gradlew assembleDebug --no-daemon
+
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon
 
   secret-scan:
     name: Secret scan

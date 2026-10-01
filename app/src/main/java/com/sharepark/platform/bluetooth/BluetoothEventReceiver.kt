@@ -39,13 +39,9 @@ class BluetoothEventReceiver : BroadcastReceiver() {
                             putExtra("bt_address", macAddress)
                             putExtra("vehicle_id", registeredVehicle.id)
                         }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            // On Android 12+, we can only start a foreground service from a BroadcastReceiver under certain circumstances.
-                            // Triggering from a Bluetooth broadcast is allowed under system exclusions.
-                            context.startForegroundService(serviceIntent)
-                        } else {
-                            context.startForegroundService(serviceIntent)
-                        }
+                        // Android 12+ restricts background foreground-service starts, but ACL
+                        // broadcasts are on the exemption list.
+                        context.startForegroundService(serviceIntent)
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
