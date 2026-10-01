@@ -40,10 +40,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.sharepark.platform.permissions.PermissionManager
 import com.sharepark.ui.screens.history.HistoryScreen
 import com.sharepark.ui.screens.map.MapScreen
@@ -52,6 +54,7 @@ import com.sharepark.ui.screens.settings.SettingsScreen
 import com.sharepark.ui.screens.settings.TrustedContactsScreen
 import com.sharepark.ui.screens.settings.WhatsAppAutomationScreen
 import com.sharepark.ui.screens.vehicles.AddVehicleScreen
+import com.sharepark.ui.screens.vehicles.ReservationsScreen
 import com.sharepark.ui.screens.vehicles.VehiclesScreen
 
 /** Detail screens that own the whole window — the bottom bar is hidden while they're up. */
@@ -59,7 +62,8 @@ private val FULL_SCREEN_ROUTES = setOf(
     "add_vehicle",
     "trusted_contacts",
     "wa_automation",
-    "automation_zones"
+    "automation_zones",
+    "reservations/{vehicleId}"
 )
 
 sealed class Screen(val route: String, val label: String, val icon: @Composable () -> Unit) {
@@ -71,8 +75,18 @@ sealed class Screen(val route: String, val label: String, val icon: @Composable 
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
-fun AppNavigation() {
+fun AppNavigation(
+    openReservationsFor: Long? = null,
+    onReservationsOpened: () -> Unit = {}
+) {
     val navController = rememberNavController()
+
+    // Tapping a reservation notification lands on that car's reservations.
+    LaunchedEffect(openReservationsFor) {
+        val vehicleId = openReservationsFor ?: return@LaunchedEffect
+        navController.navigate("reservations/$vehicleId")
+        onReservationsOpened()
+    }
     val context = LocalContext.current
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -201,7 +215,16 @@ fun AppNavigation() {
             }
             composable(Screen.Vehicles.route) {
                 VehiclesScreen(
-                    onNavigateToAddVehicle = { navController.navigate("add_vehicle") }
+                    onNavigateToAddVehicle = { navController.navigate("add_vehicle") },
+                    onNavigateToReservations = { vehicleId -> navController.navigate("reservations/$vehicleId") }
+                )
+            }
+            composable(
+                route = "reservations/{vehicleId}",
+                arguments = listOf(navArgument("vehicleId") { type = NavType.LongType })
+            ) {
+                ReservationsScreen(
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
             composable("add_vehicle") {

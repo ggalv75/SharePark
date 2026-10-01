@@ -20,6 +20,7 @@ object NotificationHelper {
     private const val EVENT_NOTIFICATION_ID = 2002
     // One slot per shared car, so two cars parked by others don't replace each other.
     private const val SHARED_NOTIFICATION_ID_BASE = 3000
+    private const val RESERVATION_NOTIFICATION_ID_BASE = 4000
 
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -150,5 +151,37 @@ object NotificationHelper {
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(SHARED_NOTIFICATION_ID_BASE + vehicleId.toInt(), notification)
+    }
+
+    /** Another member of a shared car just reserved it for a time slot. */
+    fun showReservationNotification(
+        context: Context,
+        vehicleId: Long,
+        vehicleName: String,
+        reservedByName: String,
+        slot: String
+    ) {
+        createNotificationChannels(context)
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            putExtra(MainActivity.EXTRA_OPEN_RESERVATIONS, vehicleId)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            RESERVATION_NOTIFICATION_ID_BASE + vehicleId.toInt(),
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_EVENTS_ID)
+            .setContentTitle("$reservedByName שריין את $vehicleName 📅")
+            .setContentText(slot)
+            .setSmallIcon(android.R.drawable.ic_menu_my_calendar)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(RESERVATION_NOTIFICATION_ID_BASE + vehicleId.toInt(), notification)
     }
 }

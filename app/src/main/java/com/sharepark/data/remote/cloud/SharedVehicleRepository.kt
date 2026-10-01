@@ -2,9 +2,12 @@ package com.sharepark.data.remote.cloud
 
 import android.util.Log
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentChange
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.sharepark.domain.model.Reservation
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -36,6 +39,7 @@ class SharingException(message: String) : Exception(message)
  *
  *   vehicles/{cloudId}                  name, ownerUid, memberUids[], createdAt, joinCode
  *   vehicles/{cloudId}/parkings/{key}   one document per parking, written by whoever parked
+ *   vehicles/{cloudId}/reservations/{id} a time slot a member booked the car for
  *   invites/{code}                      vehicleId, createdBy, expiresAt — knowing the code is the grant
  *
  * Joining needs no server code: the joiner adds only their own uid to memberUids and names the
@@ -120,6 +124,7 @@ class SharedVehicleRepository @Inject constructor(
 
         if (members.all { it == user.uid }) {
             deleteParkings(cloudId, olderThan = Long.MAX_VALUE)
+            deleteReservations(cloudId, endedBefore = Long.MAX_VALUE)
             ref.delete().await()
         } else {
             ref.update("memberUids", FieldValue.arrayRemove(user.uid)).await()
@@ -187,6 +192,123 @@ class SharedVehicleRepository @Inject constructor(
         }
     }
 
+    // ── Reservations ────────────────────────────────────────────────────────
+
+    /**
+     * Books the car for [startAt, endAt). Fails with a [SharingException] naming the member who
+     * already holds an overlapping slot. The check runs on this phone, so two members booking the
+     * same slot within the same second could both succeed — rare enough for a family car.
+     */
+    suspend fun addReservation(cloudId: String, startAt: Long, endAt: Long, note: String?): Reservation {
+        val user = requireUser()
+        if (endAt <= startAt) throw SharingException("שעת הסיום חייבת להיות אחרי שעת ההתחלה")
+        if (endAt <= System.currentTimeMillis()) throw SharingException("אי אפשר לשריין זמן שכבר עבר")
+
+        val conflict = reservationsEndingAfter(cloudId, startAt).firstOrNull { it.overlaps(startAt, endAt) }
+        if (conflict != null) {
+            throw SharingException("הרכב כבר משוריין בזמן הזה ע\"י ${conflict.reservedByName}")
+        }
+
+        val ref = vehicleRef(cloudId).collection(RESERVATIONS).document()
+        val cleanNote = note?.trim()?.take(NOTE_MAX_LENGTH)?.takeIf { it.isNotEmpty() }
+        ref.set(
+            mapOf(
+                "startAt" to startAt,
+                "endAt" to endAt,
+                "reservedByUid" to user.uid,
+                "reservedByName" to user.displayName,
+                "note" to cleanNote,
+                "createdAt" to System.currentTimeMillis()
+            )
+        ).await()
+        return Reservation(ref.id, startAt, endAt, user.uid, user.displayName, cleanNote)
+    }
+
+    /** Only the member who booked a slot can cancel it (enforced by the rules too). */
+    suspend fun cancelReservation(cloudId: String, reservationId: String) {
+        requireUser()
+        vehicleRef(cloudId).collection(RESERVATIONS).document(reservationId).delete().await()
+    }
+
+    /**
+     * Live feed of the car's reservations that haven't ended yet, soonest first. With
+     * [serverOnly], snapshots answered from the local cache are skipped: a cold cache looks like
+     * "no reservations", which must not read as "everything was cancelled".
+     */
+    fun observeReservations(cloudId: String, serverOnly: Boolean = false): Flow<List<Reservation>> = callbackFlow {
+        val registration = vehicleRef(cloudId).collection(RESERVATIONS)
+            .whereGreaterThan("endAt", System.currentTimeMillis())
+            .orderBy("endAt")
+            .limit(OBSERVE_LIMIT)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.w(TAG, "Reservation listener for $cloudId stopped", error)
+                    close()
+                    return@addSnapshotListener
+                }
+                if (serverOnly && snapshot?.metadata?.isFromCache != false) return@addSnapshotListener
+                trySend(snapshot?.documents.orEmpty().mapNotNull { it.toReservation() }.sortedBy { it.startAt })
+            }
+        awaitClose { registration.remove() }
+    }
+
+    /**
+     * Reservations made since [sinceMillis] by members other than [myUid] — the new bookings
+     * worth a notification. Emits only additions, so the initial snapshot after a restart is
+     * filtered by [sinceMillis] rather than replayed.
+     */
+    fun observeNewReservations(cloudId: String, myUid: String, sinceMillis: Long): Flow<Reservation> = callbackFlow {
+        val registration = vehicleRef(cloudId).collection(RESERVATIONS)
+            .whereGreaterThanOrEqualTo("createdAt", sinceMillis)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.w(TAG, "New-reservation listener for $cloudId stopped", error)
+                    close()
+                    return@addSnapshotListener
+                }
+                snapshot?.documentChanges.orEmpty()
+                    .filter { it.type == DocumentChange.Type.ADDED }
+                    .mapNotNull { it.document.toReservation() }
+                    .filter { it.reservedByUid != myUid }
+                    .forEach { trySend(it) }
+            }
+        awaitClose { registration.remove() }
+    }
+
+    /** Removes slots that ended before [endedBefore] — same 30-day window as the parkings. */
+    suspend fun deleteReservations(cloudId: String, endedBefore: Long) {
+        val stale = vehicleRef(cloudId).collection(RESERVATIONS)
+            .whereLessThan("endAt", endedBefore)
+            .get()
+            .await()
+        stale.documents.chunked(BATCH_LIMIT).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { batch.delete(it.reference) }
+            batch.commit().await()
+        }
+    }
+
+    private suspend fun reservationsEndingAfter(cloudId: String, time: Long): List<Reservation> =
+        vehicleRef(cloudId).collection(RESERVATIONS)
+            .whereGreaterThan("endAt", time)
+            .get()
+            .await()
+            .documents
+            .mapNotNull { it.toReservation() }
+
+    private fun DocumentSnapshot.toReservation(): Reservation? {
+        val startAt = getLong("startAt") ?: return null
+        val endAt = getLong("endAt") ?: return null
+        return Reservation(
+            id = id,
+            startAt = startAt,
+            endAt = endAt,
+            reservedByUid = getString("reservedByUid").orEmpty(),
+            reservedByName = getString("reservedByName").orEmpty(),
+            note = getString("note")
+        )
+    }
+
     private fun generateCode(): String =
         (1..CODE_LENGTH).map { CODE_ALPHABET[random.nextInt(CODE_ALPHABET.length)] }.joinToString("")
 
@@ -195,6 +317,8 @@ class SharedVehicleRepository @Inject constructor(
         private const val VEHICLES = "vehicles"
         private const val PARKINGS = "parkings"
         private const val INVITES = "invites"
+        private const val RESERVATIONS = "reservations"
+        private const val NOTE_MAX_LENGTH = 200
         private const val OBSERVE_LIMIT = 50L
         private const val BATCH_LIMIT = 400
         private const val INVITE_TTL_HOURS = 48L

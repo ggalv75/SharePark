@@ -74,6 +74,7 @@ working detection and a crash loop on real hardware.
 | 🔒 **Deferred send** | If the phone is locked when you park, the message is queued and sent the moment you unlock. |
 | 👥 **Trusted contacts** | Saved recipients for quick manual sharing. |
 | 🤝 **Shared vehicles** | Several people share one car and all see, live, where it was last parked and by whom. |
+| 📅 **Reservations** | Book a shared car for a date and time slot; every member sees the booking right away. |
 | 🔁 **Survives reboot** | The Bluetooth receiver is declared in the manifest, so detection keeps working after a restart or app update; `BootReceiver` recreates the notification channels. |
 | 🌐 **RTL-first** | Hebrew UI with full right-to-left layout support. |
 
@@ -127,8 +128,17 @@ who parked.
   `vehicles/{id}/parkings`. `SharedParkingSync` listens to every shared car and writes incoming
   parkings into the same Room tables, so the map, history and notifications need no special
   handling. Each parking carries a key so a phone doesn't re-import its own upload.
-- **Access control.** [`firestore.rules`](firestore.rules) limits a car and its parkings to its
-  members. Joining needs no server code: the joiner may only add their own uid, and only while
+- **Reservations.** The calendar button on a shared car opens its bookings: who has the car
+  now and every upcoming slot. Any member can book a free slot (a day, a start and an end time,
+  an optional note); overlapping an existing slot is refused. Slots live in
+  `vehicles/{id}/reservations`, the other members get a notification, and only whoever booked a
+  slot can cancel it.
+- **Calendar.** Each member's phone adds every booking of their shared cars to its own calendar
+  (the primary writable one, usually the Google account's), and removes it again if the booking
+  is cancelled or the member stops sharing the car. The phone asks for calendar access once, and a
+  switch on the reservations screen turns it off.
+- **Access control.** [`firestore.rules`](firestore.rules) limits a car, its parkings and its
+  reservations to its members. Joining needs no server code: the joiner may only add their own uid, and only while
   citing an unexpired invite for that car. The last member to leave deletes the car and its
   history.
 
@@ -279,7 +289,8 @@ coordinate pair and returns an address. Location is shared exactly once per park
 the recipient you configured yourself. Records older than 30 days are deleted automatically.
 
 A car you choose to share is the exception. Its parkings (coordinates, address, time, and the
-name of whoever parked) are stored in Firestore, where only its members can read them. That
+name of whoever parked) and its reservations (time slot, the booker's name and an optional
+note) are stored in Firestore, where only its members can read them. That
 requires a Google account, and the cloud copy follows the same 30-day limit. Stop sharing, and
 the last member out deletes the car's cloud data.
 

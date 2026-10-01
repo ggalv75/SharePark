@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sharepark.data.local.prefs.ReservationCalendarStore
 import com.sharepark.data.remote.cloud.AuthRepository
 import com.sharepark.data.remote.cloud.CloudUser
 import com.sharepark.data.remote.cloud.SharedVehicleRepository
@@ -15,6 +16,7 @@ import com.sharepark.data.repository.ParkingRepository
 import com.sharepark.data.repository.VehicleRepository
 import com.sharepark.domain.usecase.PublishSharedParkingUseCase
 import com.sharepark.domain.model.Vehicle
+import com.sharepark.platform.calendar.DeviceCalendar
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +35,7 @@ class VehiclesViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val sharedVehicleRepository: SharedVehicleRepository,
     private val publishSharedParkingUseCase: PublishSharedParkingUseCase,
+    private val calendarStore: ReservationCalendarStore,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -215,6 +218,22 @@ class VehiclesViewModel @Inject constructor(
                 _sharingState.value = SharingState.Message(errorText(e))
             }
         }
+    }
+
+    /**
+     * Reservations go into each member's calendar, so a member who has a shared car is asked for
+     * calendar access once — even if they never open the reservations screen themselves.
+     */
+    fun shouldAskCalendarPermission(vehicles: List<Vehicle>): Boolean =
+        isSharingAvailable && vehicles.any { it.isShared } && calendarStore.enabled.value &&
+            !DeviceCalendar.hasPermission(context) && !calendarStore.askedForPermission
+
+    fun onCalendarPermissionAsked() {
+        calendarStore.askedForPermission = true
+    }
+
+    fun onCalendarPermissionResult(granted: Boolean) {
+        if (granted) calendarStore.setEnabled(true) else calendarStore.onPermissionChanged()
     }
 
     /** So the others see where the car is right away, not only after its next parking. */

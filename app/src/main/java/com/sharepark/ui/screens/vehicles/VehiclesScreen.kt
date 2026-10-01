@@ -1,5 +1,7 @@
 package com.sharepark.ui.screens.vehicles
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Edit
@@ -36,6 +39,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +52,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sharepark.domain.model.Vehicle
+import com.sharepark.platform.calendar.DeviceCalendar
 import com.sharepark.ui.components.AppCard
 import com.sharepark.ui.components.IconBadge
 import com.sharepark.ui.components.PrimaryPillButton
@@ -58,6 +63,7 @@ import com.sharepark.ui.components.simpleVerticalScrollbar
 @Composable
 fun VehiclesScreen(
     onNavigateToAddVehicle: () -> Unit,
+    onNavigateToReservations: (vehicleId: Long) -> Unit,
     viewModel: VehiclesViewModel = hiltViewModel()
 ) {
     val vehicles by viewModel.vehicles.collectAsState()
@@ -66,6 +72,16 @@ fun VehiclesScreen(
     val context = LocalContext.current
     var vehicleBeingRenamed by remember { mutableStateOf<Vehicle?>(null) }
     var sharedVehicleOptions by remember { mutableStateOf<Vehicle?>(null) }
+
+    val calendarPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results -> viewModel.onCalendarPermissionResult(results.values.all { it }) }
+    LaunchedEffect(vehicles) {
+        if (viewModel.shouldAskCalendarPermission(vehicles)) {
+            viewModel.onCalendarPermissionAsked()
+            calendarPermissionLauncher.launch(DeviceCalendar.PERMISSIONS)
+        }
+    }
 
     SharingDialogs(
         state = sharingState,
@@ -178,6 +194,11 @@ fun VehiclesScreen(
                             onSelect = { viewModel.setActiveVehicle(vehicle.id) },
                             onEdit = { vehicleBeingRenamed = vehicle },
                             onDelete = { viewModel.deleteVehicle(vehicle) },
+                            onReservations = if (vehicle.isShared) {
+                                { onNavigateToReservations(vehicle.id) }
+                            } else {
+                                null
+                            },
                             onShare = if (viewModel.isSharingAvailable) {
                                 {
                                     if (vehicle.isShared) sharedVehicleOptions = vehicle
@@ -201,7 +222,8 @@ fun VehicleCard(
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onShare: (() -> Unit)? = null
+    onShare: (() -> Unit)? = null,
+    onReservations: (() -> Unit)? = null
 ) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     AppCard(
@@ -261,6 +283,16 @@ fun VehicleCard(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End
         ) {
+            if (onReservations != null) {
+                IconButton(onClick = onReservations) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarMonth,
+                        contentDescription = "שריונים",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
             if (onShare != null) {
                 IconButton(onClick = onShare) {
                     Icon(
