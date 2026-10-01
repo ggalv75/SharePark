@@ -30,7 +30,9 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -104,18 +106,24 @@ class ParkingDetectionService : Service() {
         return START_NOT_STICKY
     }
 
-    private suspend fun detectParking(btAddress: String, vehicleId: Long) {
+    private suspend fun detectParking(btAddress: String, vehicleId: Long) = coroutineScope {
+        // Start the GPS fix right away, in parallel with the debounce below: the fix is ready
+        // the moment the wait ends instead of starting then, and it's taken next to the car
+        // rather than 10+ seconds later, after the driver has walked off.
+        val pendingLocation = async { LocationHelper.getCurrentLocation(this@ParkingDetectionService) }
+
         // 1. Debounce phase: Wait 10 seconds to verify if the disconnection is stable
         // (e.g. not a brief signal drop in a tunnel or quick engine restart)
         delay(10000L)
 
         if (isDeviceStillConnected(btAddress)) {
             // Device reconnected or never disconnected, abort
-            return
+            pendingLocation.cancel()
+            return@coroutineScope
         }
 
-        // 2. Fetch high-accuracy GPS coordinates
-        val location = LocationHelper.getCurrentLocation(this@ParkingDetectionService)
+        // 2. High-accuracy GPS coordinates, usually already resolved during the wait
+        val location = pendingLocation.await()
         if (location != null) {
             val vehicle = vehicleRepository.getVehicleById(vehicleId)
             val vehicleName = vehicle?.name ?: "הרכב שלי"
@@ -144,10 +152,15 @@ class ParkingDetectionService : Service() {
             )
 
             // 5. Shared car: put the parking in the cloud so the other members see it live.
+            // Launched alongside the WhatsApp send rather than before it — the upload can take
+            // up to 15 s and the message doesn't depend on it. The enclosing coroutineScope
+            // still waits for it, so the service doesn't stop mid-upload.
             if (vehicle?.isShared == true) {
-                parkingRepository.getCurrentParkingOnce(vehicleId)
-                    ?.takeIf { it.id == saveResult.recordId }
-                    ?.let { publishSharedParkingUseCase(vehicle, it) }
+                launch {
+                    parkingRepository.getCurrentParkingOnce(vehicleId)
+                        ?.takeIf { it.id == saveResult.recordId }
+                        ?.let { publishSharedParkingUseCase(vehicle, it) }
+                }
             }
 
             // 6. WhatsApp automation: each vehicle has its own target chat, so look up
