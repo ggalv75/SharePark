@@ -29,6 +29,20 @@ data class ParkingRecord(
     val parkedByName: String? = null
 )
 
+/** A time slot one member booked a shared car for; every member of the car sees it. */
+data class Reservation(
+    val id: String,
+    val startAt: Long,
+    val endAt: Long,
+    val reservedByUid: String,
+    val reservedByName: String,
+    val note: String? = null
+) {
+    fun isOngoing(now: Long = System.currentTimeMillis()): Boolean = now in startAt until endAt
+
+    fun overlaps(start: Long, end: Long): Boolean = start < endAt && end > startAt
+}
+
 data class TrustedContact(
     val id: Long = 0,
     val name: String,

@@ -22,6 +22,7 @@ class CleanupOldRecordsUseCase @Inject constructor(
         if (authRepository.currentUserNow() != null) {
             vehicleRepository.getLinkedVehicles().forEach { vehicle ->
                 runCatching { sharedVehicleRepository.deleteParkings(vehicle.cloudId!!, thirtyDaysAgo) }
+                runCatching { sharedVehicleRepository.deleteReservations(vehicle.cloudId!!, thirtyDaysAgo) }
             }
         }
         return deleted

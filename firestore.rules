@@ -4,6 +4,7 @@ rules_version = '2';
 //
 //   vehicles/{vehicleId}                  name, ownerUid, memberUids[], createdAt, joinCode
 //   vehicles/{vehicleId}/parkings/{key}   one per parking, written by the member who parked
+//   vehicles/{vehicleId}/reservations/{id} a time slot a member booked the car for
 //   invites/{code}                        vehicleId, createdBy, expiresAt
 //
 // A car and its parkings are visible only to its members. Joining works without server code:
@@ -73,6 +74,29 @@ service cloud.firestore {
           && request.resource.data.latitude is number
           && request.resource.data.longitude is number
           && request.resource.data.parkedAt is int;
+
+        allow update: if false;
+      }
+
+      // Every member sees every booking; only the member who booked a slot can cancel it,
+      // except that cleanup may remove slots that ended long ago.
+      match /reservations/{reservationId} {
+        allow read: if isMember(vehicleId);
+
+        allow create: if isMember(vehicleId)
+          && request.resource.data.reservedByUid == request.auth.uid
+          && request.resource.data.startAt is int
+          && request.resource.data.endAt is int
+          && request.resource.data.endAt > request.resource.data.startAt
+          && request.resource.data.reservedByName is string
+          && request.resource.data.reservedByName.size() <= 100
+          && (request.resource.data.note == null
+              || (request.resource.data.note is string && request.resource.data.note.size() <= 200));
+
+        allow delete: if isMember(vehicleId)
+          && (resource.data.reservedByUid == request.auth.uid
+              || resource.data.endAt < request.time.toMillis() - 30 * 24 * 60 * 60 * 1000
+              || vehicleDoc(vehicleId).data.memberUids == [request.auth.uid]);
 
         allow update: if false;
       }
