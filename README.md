@@ -73,7 +73,7 @@ working detection and a crash loop on real hardware.
 | 🎯 **Automation zones** | Mark addresses on the map with a radius each; the automated message only fires for parkings inside one of them. |
 | 🔒 **Deferred send** | If the phone is locked when you park, the message is queued and sent the moment you unlock. |
 | 👥 **Trusted contacts** | Saved recipients for quick manual sharing. |
-| 🔁 **Survives reboot** | `BootReceiver` re-arms monitoring after restart or app update. |
+| 🔁 **Survives reboot** | The Bluetooth receiver is declared in the manifest, so detection keeps working after a restart or app update; `BootReceiver` recreates the notification channels. |
 | 🌐 **RTL-first** | Hebrew UI with full right-to-left layout support. |
 
 ## WhatsApp automation
@@ -103,7 +103,7 @@ send path with a test message, so the flow can be verified without driving anywh
 ## Automation zones
 
 Automation is gated on *where* the car parked. Each zone is an address (searched by text or
-tapped on the map) plus a radius of 50–2000 m, and a parking only triggers a message when it
+tapped on the map) plus a radius of 50–500 m, and a parking only triggers a message when it
 falls inside an enabled zone — the smallest matching one wins, so a tight circle drawn inside
 a wider one is the one reported. With no zones defined the gate is inert and automation runs
 everywhere, so enabling the option can never silently switch the feature off.
@@ -219,7 +219,7 @@ full key-handling model, including how to restrict the key in the Google Cloud C
 | `BLUETOOTH_CONNECT` / `BLUETOOTH_SCAN` | Read paired devices and observe connection state. `neverForLocation` is declared on scan. |
 | `FOREGROUND_SERVICE_LOCATION` / `_CONNECTED_DEVICE` | Required service types for the detection service. |
 | `POST_NOTIFICATIONS` | Deliver the "parking saved" notification and its share action. |
-| `RECEIVE_BOOT_COMPLETED` | Re-arm monitoring after a reboot. |
+| `RECEIVE_BOOT_COMPLETED` | Recreate notification channels after a reboot. |
 | `INTERNET` | Reverse geocoding only. |
 | `WAKE_LOCK` | Complete an automated send that fires while the screen is off. |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Optional, user-initiated; prevents Doze from delaying detection. |
@@ -234,7 +234,8 @@ automatically.
 
 ## Roadmap
 
-- [ ] Unit tests for the detection pipeline and `WhatsAppLinkBuilder` normalisation
+- [x] Unit tests for `WhatsAppLinkBuilder` normalisation (`./gradlew testDebugUnitTest`)
+- [ ] Unit tests for the detection pipeline
 - [ ] English localisation alongside the existing Hebrew strings
 - [ ] Parking-duration tracking and meter-expiry reminders
 - [ ] Photo attachment for the parking spot (level, bay number)

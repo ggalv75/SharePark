@@ -36,6 +36,9 @@ jobs:
       - name: Assemble debug
         run: ./gradlew assembleDebug --no-daemon
 
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon
+
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest

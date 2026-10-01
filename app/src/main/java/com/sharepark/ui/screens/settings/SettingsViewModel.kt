@@ -36,11 +36,7 @@ class SettingsViewModel @Inject constructor(
             putExtra("bt_address", vehicle.btAddress)
             putExtra("vehicle_id", vehicle.id)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            context.startForegroundService(serviceIntent)
-        } else {
-            context.startForegroundService(serviceIntent)
-        }
+        context.startForegroundService(serviceIntent)
     }
 
     fun isIgnoringBatteryOptimizations(context: Context): Boolean {

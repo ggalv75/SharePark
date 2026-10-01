@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import kotlin.coroutines.resume
 import kotlin.math.roundToInt
@@ -49,6 +50,12 @@ class ParkingDetectionService : Service() {
     @Inject lateinit var automationZoneRepository: AutomationZoneRepository
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    // Two cars can disconnect within the same debounce window (e.g. both family cars parked at
+    // home). Each start gets its own detection job, and the service only stops once the last
+    // one finishes — a plain stopSelf() from the first job would cancel the second mid-flight.
+    private val activeJobs = AtomicInteger(0)
+    @Volatile private var latestStartId = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -73,65 +80,74 @@ class ParkingDetectionService : Service() {
         val btAddress = intent?.getStringExtra("bt_address")
         val vehicleId = intent?.getLongExtra("vehicle_id", -1L) ?: -1L
 
+        latestStartId = startId
         if (btAddress == null || vehicleId == -1L) {
-            stopSelf()
+            if (activeJobs.get() == 0) stopSelf(startId)
             return START_NOT_STICKY
         }
 
+        activeJobs.incrementAndGet()
         serviceScope.launch {
-            // 1. Debounce phase: Wait 10 seconds to verify if the disconnection is stable
-            // (e.g. not a brief signal drop in a tunnel or quick engine restart)
-            delay(10000L)
-
-            if (isDeviceStillConnected(btAddress)) {
-                // Device reconnected or never disconnected, abort
-                stopSelf()
-                return@launch
+            try {
+                detectParking(btAddress, vehicleId)
+            } finally {
+                // stopSelf(id) is a no-op if a newer start arrived meanwhile, so a detection
+                // that began just now is never cut short.
+                if (activeJobs.decrementAndGet() == 0) stopSelf(latestStartId)
             }
-
-            // 2. Fetch high-accuracy GPS coordinates
-            val location = LocationHelper.getCurrentLocation(this@ParkingDetectionService)
-            if (location != null) {
-                val vehicle = vehicleRepository.getVehicleById(vehicleId)
-                val vehicleName = vehicle?.name ?: "הרכב שלי"
-
-                // 3. Save the record and reverse-geocode to a Hebrew address
-                val saveResult = saveParkingUseCase(
-                    vehicleId = vehicleId,
-                    latitude = location.latitude,
-                    longitude = location.longitude,
-                    accuracy = location.accuracy
-                )
-
-                // 4. Send success notification to user, with a one-tap share action
-                val shareText = shareLocationUseCase(
-                    vehicleName = vehicleName,
-                    address = saveResult.address,
-                    latitude = location.latitude,
-                    longitude = location.longitude
-                )
-                NotificationHelper.showParkingDetectedNotification(
-                    context = this@ParkingDetectionService,
-                    vehicleId = vehicleId,
-                    vehicleName = vehicleName,
-                    address = saveResult.address,
-                    shareText = shareText
-                )
-
-                // 5. WhatsApp automation: each vehicle has its own target chat, so look up
-                // the rule for the car that just parked.
-                runAutomation(
-                    vehicleId = vehicleId,
-                    latitude = location.latitude,
-                    longitude = location.longitude,
-                    shareText = shareText
-                )
-            }
-
-            stopSelf()
         }
 
         return START_NOT_STICKY
+    }
+
+    private suspend fun detectParking(btAddress: String, vehicleId: Long) {
+        // 1. Debounce phase: Wait 10 seconds to verify if the disconnection is stable
+        // (e.g. not a brief signal drop in a tunnel or quick engine restart)
+        delay(10000L)
+
+        if (isDeviceStillConnected(btAddress)) {
+            // Device reconnected or never disconnected, abort
+            return
+        }
+
+        // 2. Fetch high-accuracy GPS coordinates
+        val location = LocationHelper.getCurrentLocation(this@ParkingDetectionService)
+        if (location != null) {
+            val vehicle = vehicleRepository.getVehicleById(vehicleId)
+            val vehicleName = vehicle?.name ?: "הרכב שלי"
+
+            // 3. Save the record and reverse-geocode to a Hebrew address
+            val saveResult = saveParkingUseCase(
+                vehicleId = vehicleId,
+                latitude = location.latitude,
+                longitude = location.longitude,
+                accuracy = location.accuracy
+            )
+
+            // 4. Send success notification to user, with a one-tap share action
+            val shareText = shareLocationUseCase(
+                vehicleName = vehicleName,
+                address = saveResult.address,
+                latitude = location.latitude,
+                longitude = location.longitude
+            )
+            NotificationHelper.showParkingDetectedNotification(
+                context = this@ParkingDetectionService,
+                vehicleId = vehicleId,
+                vehicleName = vehicleName,
+                address = saveResult.address,
+                shareText = shareText
+            )
+
+            // 5. WhatsApp automation: each vehicle has its own target chat, so look up
+            // the rule for the car that just parked.
+            runAutomation(
+                vehicleId = vehicleId,
+                latitude = location.latitude,
+                longitude = location.longitude,
+                shareText = shareText
+            )
+        }
     }
 
     /**
