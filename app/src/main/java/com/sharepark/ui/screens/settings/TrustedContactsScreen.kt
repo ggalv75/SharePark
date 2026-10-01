@@ -12,8 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -31,8 +32,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,7 +47,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sharepark.domain.model.TrustedContact
+import com.sharepark.ui.components.CircleIconButton
 import com.sharepark.ui.components.IconBadge
+import com.sharepark.ui.components.ScreenHeader
 import com.sharepark.ui.components.pressScale
 import com.sharepark.ui.components.rememberBreathingScale
 import com.sharepark.ui.components.simpleVerticalScrollbar
@@ -74,26 +75,22 @@ fun TrustedContactsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("אנשי קשר מורשים", fontWeight = FontWeight.Bold) },
+            ScreenHeader(
+                title = "אנשי קשר מורשים",
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "חזור",
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
+                    CircleIconButton(
+                        icon = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "חזור",
+                        onClick = onNavigateBack,
+                        size = 44.dp
+                    )
+                }
             )
         },
         floatingActionButton = {
             val fabInteractionSource = remember { MutableInteractionSource() }
             FloatingActionButton(
+                shape = CircleShape,
                 onClick = { showAddDialog = true },
                 interactionSource = fabInteractionSource,
                 modifier = Modifier.pressScale(fabInteractionSource),
@@ -164,7 +161,7 @@ fun ContactCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
@@ -224,7 +221,7 @@ fun AddContactDialog(
                     onValueChange = { name = it },
                     label = { Text("שם") },
                     singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.small,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -234,7 +231,7 @@ fun AddContactDialog(
                     label = { Text("מספר טלפון") },
                     singleLine = true,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Phone),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.small,
                     modifier = Modifier.fillMaxWidth()
                 )
             }

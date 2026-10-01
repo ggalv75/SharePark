@@ -41,7 +41,14 @@ class WhatsAppAutoSendService : AccessibilityService() {
     // Fires the deferred send once the user unlocks the phone.
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (!isScreenUsable(context)) return
+            // USER_PRESENT is itself the "unlocked" signal; re-checking the keyguard can race the
+            // unlock animation and drop the send. SCREEN_ON still needs the check — the screen
+            // can light up on the lock screen.
+            val unlocked = intent.action == Intent.ACTION_USER_PRESENT || isScreenUsable(context)
+            if (!unlocked) {
+                Log.d(TAG, "${intent.action} while still locked — waiting for unlock")
+                return
+            }
             val stored = PendingAutomationStore.load(context) ?: return
             PendingAutomationStore.clear(context)
             Log.i(TAG, "Phone unlocked — firing deferred automated send")
@@ -60,7 +67,11 @@ class WhatsAppAutoSendService : AccessibilityService() {
             addAction(Intent.ACTION_USER_PRESENT)
             addAction(Intent.ACTION_SCREEN_ON)
         }
-        ContextCompat.registerReceiver(this, unlockReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        // Must be EXPORTED: USER_PRESENT is sent by SystemUI, which runs under its own app uid,
+        // and a NOT_EXPORTED receiver only accepts broadcasts from the system uid or this app —
+        // so the unlock never arrived and deferred sends waited forever. Both actions are
+        // protected broadcasts, so no third-party app can spoof them.
+        ContextCompat.registerReceiver(this, unlockReceiver, filter, ContextCompat.RECEIVER_EXPORTED)
         Log.i(TAG, "Accessibility service connected")
 
         // A send may have been deferred while the process was dead — if the phone is already

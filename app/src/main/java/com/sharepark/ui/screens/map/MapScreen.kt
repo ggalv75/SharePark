@@ -5,7 +5,6 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.text.format.DateUtils
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -13,10 +12,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,27 +30,24 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -63,15 +58,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.sharepark.R
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -81,19 +76,22 @@ import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
-import com.sharepark.R
 import com.sharepark.domain.model.ParkingRecord
 import com.sharepark.domain.model.TrustedContact
 import com.sharepark.domain.usecase.WhatsAppLinkBuilder
 import com.sharepark.platform.location.LocationHelper
 import com.sharepark.platform.permissions.PermissionManager
+import com.sharepark.ui.components.CircleIconButton
 import com.sharepark.ui.components.IconBadge
-import com.sharepark.ui.components.pressScale
+import com.sharepark.ui.components.PrimaryPillButton
+import com.sharepark.ui.components.SecondaryPillButton
+import com.sharepark.ui.components.SheetHandle
+import com.sharepark.ui.components.StatDivider
+import com.sharepark.ui.components.StatItem
 import com.sharepark.ui.components.rememberBreathingScale
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
     onFullScreenChange: (Boolean) -> Unit = {},
@@ -160,58 +158,32 @@ fun MapScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            if (!isFullScreen) {
-                TopAppBar(
-                    title = {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(end = 16.dp),
-                            contentAlignment = Alignment.CenterEnd
-                        ) {
-                            Text(
-                                text = stringResource(R.string.app_name),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        titleContentColor = MaterialTheme.colorScheme.onBackground
-                    )
-                )
-            }
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            if (!permissionsGranted) {
-                PermissionOverlay(
-                    onPermissionsGranted = { permissionsGranted = true }
-                )
-            } else {
-                MapContent(
-                    parking = currentParking,
-                    activeVehicleName = activeVehicle?.name,
-                    isFullScreen = isFullScreen,
-                    onToggleFullScreen = { isFullScreen = !isFullScreen },
-                    onShare = { showShareOptions = true },
-                    onNavigate = { lat, lng ->
-                        // Walking directions — you're on foot looking for the car, not driving to it.
-                        val gmmIntentUri = Uri.parse("google.navigation:q=$lat,$lng&mode=w")
-                        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri).apply {
-                            setPackage("com.google.android.apps.maps")
-                        }
-                        context.startActivity(mapIntent)
+    // The map owns the whole tab; everything else floats over it.
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        if (!permissionsGranted) {
+            PermissionOverlay(
+                onPermissionsGranted = { permissionsGranted = true }
+            )
+        } else {
+            MapContent(
+                parking = currentParking,
+                activeVehicleName = activeVehicle?.name,
+                isFullScreen = isFullScreen,
+                onToggleFullScreen = { isFullScreen = !isFullScreen },
+                onShare = { showShareOptions = true },
+                onNavigate = { lat, lng ->
+                    // Walking directions — you're on foot looking for the car, not driving to it.
+                    val gmmIntentUri = Uri.parse("google.navigation:q=$lat,$lng&mode=w")
+                    val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri).apply {
+                        setPackage("com.google.android.apps.maps")
                     }
-                )
-            }
+                    context.startActivity(mapIntent)
+                }
+            )
         }
     }
 }
@@ -246,7 +218,7 @@ fun MapContent(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState,
                 properties = MapProperties(isMyLocationEnabled = true),
-                uiSettings = MapUiSettings(myLocationButtonEnabled = false),
+                uiSettings = MapUiSettings(myLocationButtonEnabled = false, zoomControlsEnabled = false),
                 onMapClick = { if (!isFullScreen) onToggleFullScreen() }
             ) {
                 Marker(
@@ -258,44 +230,35 @@ fun MapContent(
 
             if (isFullScreen) {
                 // Close button — exits fullscreen (back button also works via BackHandler)
-                IconButton(
+                CircleIconButton(
+                    icon = Icons.Default.Close,
+                    contentDescription = "צא ממסך מלא",
                     onClick = onToggleFullScreen,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(16.dp)
-                        .background(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                            shape = androidx.compose.foundation.shape.CircleShape
-                        )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "צא ממסך מלא",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
+                )
             }
 
-            // Floating action buttons — full screen / re-center on my location / on the car
+            // Floating map controls — full screen / re-center on my location / on the car
             Column(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(16.dp)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Tapping the map also expands it, but that's invisible until you try it.
                 if (!isFullScreen) {
-                    FloatingActionButton(
-                        onClick = onToggleFullScreen,
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    ) {
-                        Icon(Icons.Default.Fullscreen, contentDescription = "מסך מלא")
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
+                    CircleIconButton(
+                        icon = Icons.Default.Fullscreen,
+                        contentDescription = "מסך מלא",
+                        onClick = onToggleFullScreen
+                    )
                 }
 
-                FloatingActionButton(
+                CircleIconButton(
+                    icon = Icons.Default.MyLocation,
+                    contentDescription = "המיקום שלי",
                     onClick = {
                         coroutineScope.launch {
                             val myLocation = LocationHelper.getCurrentLocation(context)
@@ -306,158 +269,181 @@ fun MapContent(
                                 )
                             }
                         }
-                    },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ) {
-                    Icon(Icons.Default.MyLocation, contentDescription = "המיקום שלי")
-                }
+                    }
+                )
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                FloatingActionButton(
+                CircleIconButton(
+                    icon = Icons.Default.DirectionsCar,
+                    contentDescription = "מיקום הרכב",
                     onClick = {
                         cameraPositionState.position = CameraPosition.fromLatLngZoom(position, 16f)
                     },
-                    containerColor = MaterialTheme.colorScheme.secondary,
-                    contentColor = MaterialTheme.colorScheme.onSecondary
-                ) {
-                    Icon(Icons.Default.DirectionsCar, contentDescription = "מיקום הרכב")
-                }
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
             }
 
-            // Bottom detail card
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(16.dp)
+            // Bottom sheet with the parking details
+            AnimatedVisibility(
+                visible = !isFullScreen,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconBadge(
-                                icon = Icons.Default.DirectionsCar,
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.padding(end = 12.dp)
-                            )
-                            Column {
-                                Text(
-                                    text = activeVehicleName ?: "הרכב שלי",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-
-                                val timeString = DateUtils.getRelativeTimeSpanString(
-                                    parking.parkedAt,
-                                    System.currentTimeMillis(),
-                                    DateUtils.MINUTE_IN_MILLIS
-                                ).toString()
-
-                                // Shared cars: say who parked it, when it wasn't this phone.
-                                val parkedBy = parking.parkedByName?.let { " · $it" }.orEmpty()
-                                Text(
-                                    text = "חנה: $timeString$parkedBy",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        Text(
-                            text = parking.address ?: "מעבד מיקום...",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            val shareInteractionSource = remember { MutableInteractionSource() }
-                            Button(
-                                onClick = onShare,
-                                interactionSource = shareInteractionSource,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp)
-                                    .pressScale(shareInteractionSource),
-                                shape = RoundedCornerShape(12.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
-                                Icon(Icons.Default.Share, contentDescription = "שתף")
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("שתף", fontWeight = FontWeight.Bold, maxLines = 1)
-                            }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            val navigateInteractionSource = remember { MutableInteractionSource() }
-                            Button(
-                                onClick = { onNavigate(parking.latitude, parking.longitude) },
-                                interactionSource = navigateInteractionSource,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp)
-                                    .pressScale(navigateInteractionSource),
-                                shape = RoundedCornerShape(12.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.secondary
-                                )
-                            ) {
-                                Icon(Icons.Default.Directions, contentDescription = "ניווט")
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("ניווט", fontWeight = FontWeight.Bold, maxLines = 1)
-                            }
-                        }
-                    }
-                }
+                ParkingSheet(
+                    parking = parking,
+                    vehicleName = activeVehicleName ?: "הרכב שלי",
+                    onShare = onShare,
+                    onNavigate = { onNavigate(parking.latitude, parking.longitude) }
+                )
             }
         } else {
-            // Empty State
+            // Empty state — soft gradient canvas with a bold, left-weighted message
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.background,
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                            )
+                        )
+                    )
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(horizontal = 28.dp)
+                ) {
                     val breathingScale = rememberBreathingScale()
                     IconBadge(
                         icon = Icons.Default.Map,
                         tint = MaterialTheme.colorScheme.primary,
-                        size = 72.dp,
-                        iconSize = 34.dp,
+                        size = 64.dp,
+                        iconSize = 30.dp,
                         modifier = Modifier
-                            .padding(bottom = 16.dp)
+                            .padding(bottom = 20.dp)
                             .scale(breathingScale)
                     )
                     Text(
-                        text = if (activeVehicleName == null) "אין רכב פעיל רשום. פנה לכרטיסיית 'רכבים' והוסף רכב."
-                               else "אין מידע חנייה פעיל עבור $activeVehicleName. המיקום יישמר אוטומטית בעת ניתוק הבלוטות'.",
+                        text = if (activeVehicleName == null) "אין רכב פעיל" else "אין חנייה שמורה",
+                        style = MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = if (activeVehicleName == null) "פנה לכרטיסיית 'רכבים' והוסף רכב."
+                               else "המיקום של $activeVehicleName יישמר אוטומטית בעת ניתוק הבלוטות'.",
                         style = MaterialTheme.typography.bodyLarge,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ParkingSheet(
+    parking: ParkingRecord,
+    vehicleName: String,
+    onShare: () -> Unit,
+    onNavigate: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 12.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 10.dp, bottom = 20.dp)
+        ) {
+            SheetHandle(modifier = Modifier.align(Alignment.CenterHorizontally))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = vehicleName,
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Stats row — how long ago, how accurate, and (on shared cars) who parked it
+            val (elapsedValue, elapsedUnit) = elapsedSince(parking.parkedAt)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StatItem(
+                    value = elapsedValue,
+                    unit = elapsedUnit,
+                    label = "מאז החנייה",
+                    icon = Icons.Default.Schedule
+                )
+                StatDivider()
+                StatItem(
+                    value = parking.accuracy.toInt().toString(),
+                    unit = "מ׳",
+                    label = "דיוק",
+                    icon = Icons.Default.GpsFixed
+                )
+                parking.parkedByName?.let { parkedBy ->
+                    StatDivider()
+                    StatItem(
+                        value = parkedBy,
+                        label = "החנה",
+                        icon = Icons.Default.Person,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Text(
+                    text = parking.address ?: "מעבד מיקום...",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                PrimaryPillButton(
+                    text = "ניווט",
+                    icon = Icons.Default.Directions,
+                    onClick = onNavigate,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                SecondaryPillButton(
+                    text = "שתף",
+                    icon = Icons.Default.Share,
+                    onClick = onShare,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+/** Elapsed time since [since] as a bold number + short Hebrew unit. */
+private fun elapsedSince(since: Long): Pair<String, String> {
+    val minutes = ((System.currentTimeMillis() - since) / 60_000L).coerceAtLeast(0)
+    return when {
+        minutes < 60 -> minutes.toString() to "דק׳"
+        minutes < 48 * 60 -> (minutes / 60).toString() to "שע׳"
+        else -> (minutes / (24 * 60)).toString() to "ימים"
     }
 }
 
@@ -597,51 +583,54 @@ fun FamilyShareDialog(
 fun PermissionOverlay(
     onPermissionsGranted: () -> Unit
 ) {
-    val context = LocalContext.current
     var requesting by remember { mutableStateOf(false) }
 
-    Box(
+    // Welcome-style screen: soft gradient, oversized headline, one pill CTA at the bottom.
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                    )
+                )
+            )
+            .padding(horizontal = 28.dp, vertical = 24.dp)
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = "נדרשות הרשאות מערכת",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "על מנת לזהות חנייה אוטומטית ברקע ולשמור את מיקום הרכב, האפליקציה זקוקה להרשאות מיקום (כולל ברקע), בלוטות' והתראות.",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = "ברוכים הבאים ל",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.displaySmall.copy(fontSize = 52.sp, lineHeight = 58.sp),
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = "על מנת לזהות חנייה אוטומטית ברקע ולשמור את מיקום הרכב, האפליקציה זקוקה להרשאות מיקום (כולל ברקע), בלוטות' והתראות.",
+            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 19.sp, lineHeight = 27.sp),
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.weight(1.4f))
+
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             if (requesting) {
                 CircularProgressIndicator()
             } else {
-                Button(
+                PrimaryPillButton(
+                    text = "המשך להגדרת הרשאות",
                     onClick = {
                         requesting = true
-                        // A callback to prompt permissions in MainActivity can be linked here.
-                        // For simplicity, we trigger permission requests inside AppNavigation.
+                        // Permission requests themselves are triggered inside AppNavigation.
                         onPermissionsGranted()
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Text("המשך להגדרת הרשאות", fontWeight = FontWeight.Bold)
-                }
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

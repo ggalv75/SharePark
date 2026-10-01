@@ -19,7 +19,7 @@ fun IconBadge(
     icon: ImageVector,
     tint: Color,
     modifier: Modifier = Modifier,
-    containerColor: Color = tint.copy(alpha = 0.15f),
+    containerColor: Color = tint.copy(alpha = 0.08f),
     size: Dp = 44.dp,
     iconSize: Dp = 22.dp
 ) {

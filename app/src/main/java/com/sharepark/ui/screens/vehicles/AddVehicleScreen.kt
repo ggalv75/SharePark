@@ -15,10 +15,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -26,14 +26,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -44,11 +41,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.sharepark.R
+import com.sharepark.ui.components.CircleIconButton
+import com.sharepark.ui.components.ScreenHeader
 import com.sharepark.ui.components.pressScale
 import com.sharepark.ui.components.simpleVerticalScrollbar
 
@@ -69,26 +66,16 @@ fun AddVehicleScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "הוסף רכב חדש",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+            ScreenHeader(
+                title = "הוסף רכב חדש",
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "חזור",
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
+                    CircleIconButton(
+                        icon = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "חזור",
+                        onClick = onNavigateBack,
+                        size = 44.dp
+                    )
+                }
             )
         }
     ) { padding ->
@@ -105,7 +92,7 @@ fun AddVehicleScreen(
                 leadingIcon = { Icon(Icons.Default.DirectionsCar, contentDescription = null) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = MaterialTheme.shapes.small
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -175,11 +162,11 @@ fun AddVehicleScreen(
                 interactionSource = saveInteractionSource,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    .height(54.dp)
                     .pressScale(saveInteractionSource),
-                shape = RoundedCornerShape(12.dp),
+                shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondary
+                    containerColor = MaterialTheme.colorScheme.primary
                 )
             ) {
                 Text(
@@ -204,10 +191,10 @@ fun DeviceSelectionCard(
             .border(
                 width = if (isSelected) 2.dp else 0.dp,
                 color = if (isSelected) MaterialTheme.colorScheme.secondary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
+                shape = MaterialTheme.shapes.small
             )
             .clickable { onSelect() },
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.small,
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.surface 
                              else MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)

@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -34,6 +36,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -132,15 +136,26 @@ fun AppNavigation() {
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (currentRoute !in FULL_SCREEN_ROUTES && !isMapFullScreen) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp
+                ) {
                     val items = listOf(Screen.Map, Screen.Vehicles, Screen.History, Screen.Settings)
                     items.forEach { screen ->
                         NavigationBarItem(
                             icon = screen.icon,
-                            label = { Text(screen.label) },
+                            label = { Text(screen.label, style = MaterialTheme.typography.labelMedium) },
                             selected = currentRoute == screen.route,
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = Color.Transparent,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurface,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurface
+                            ),
                             onClick = {
                                 if (currentRoute != screen.route) {
                                     navController.navigate(screen.route) {
@@ -161,7 +176,11 @@ fun AppNavigation() {
         NavHost(
             navController = navController,
             startDestination = Screen.Map.route,
-            modifier = Modifier.padding(innerPadding),
+            // Consume what the outer Scaffold already padded so each screen's own header/Scaffold
+            // doesn't add the status/navigation bar insets a second time.
+            modifier = Modifier
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding),
             enterTransition = {
                 fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.97f)
             },
