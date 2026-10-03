@@ -89,6 +89,13 @@ class VehiclesViewModel @Inject constructor(
         }
     }
 
+    /** Turns a view-only shared car (e.g. one restored after reinstalling) into one this phone detects. */
+    fun linkBluetooth(vehicle: Vehicle, device: BondedDevice) {
+        viewModelScope.launch {
+            vehicleRepository.setBluetooth(vehicle.id, device.address, device.name)
+        }
+    }
+
     fun deleteVehicle(vehicle: Vehicle) {
         viewModelScope.launch {
             // Leave the shared car first; if that fails (offline) the car still goes locally,

@@ -20,7 +20,10 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -44,10 +47,20 @@ class SharedParkingSync @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
 
+    private val restoreMutex = Mutex()
+
     private data class Link(val vehicleId: Long, val cloudId: String, val name: String)
 
     fun start() {
         if (!authRepository.isAvailable || job != null) return
+        // Signing in on a fresh install (or a new phone) brings back the cars this account
+        // shares; adding them below is what restarts their parking and reservation sync.
+        scope.launch {
+            authRepository.currentUser
+                .map { it?.uid }
+                .distinctUntilChanged()
+                .collectLatest { uid -> if (uid != null) restoreMemberships() }
+        }
         job = scope.launch {
             combine(authRepository.currentUser, vehicleRepository.linkedVehicles) { user, vehicles ->
                 user to vehicles.map { Link(it.id, it.cloudId!!, it.name) }
@@ -90,6 +103,23 @@ class SharedParkingSync @Inject constructor(
                         }
                     }
                 }
+        }
+    }
+
+    private suspend fun restoreMemberships() {
+        val cloudVehicles = try {
+            sharedVehicleRepository.myVehicles()
+        } catch (e: Exception) {
+            // Offline: the next sign-in or app start tries again.
+            Log.w(TAG, "Could not list shared vehicles to restore", e)
+            return
+        }
+        restoreMutex.withLock {
+            cloudVehicles.forEach { cloud ->
+                if (vehicleRepository.getVehicleByCloudId(cloud.cloudId) == null) {
+                    vehicleRepository.insertViewOnlyVehicle(cloud.name, cloud.cloudId)
+                }
+            }
         }
     }
 
