@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.*
 import com.sharepark.platform.sync.SharedParkingSync
 import com.sharepark.platform.worker.CleanupWorker
+import com.sharepark.platform.worker.ReservationCheckWorker
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -23,6 +24,7 @@ class ShareParkApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         scheduleCleanupWorker()
+        scheduleReservationCheck()
         sharedParkingSync.start()
     }
 
@@ -37,6 +39,23 @@ class ShareParkApp : Application(), Configuration.Provider {
 
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             "cleanup_old_records",
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+    }
+
+    // 15 minutes is the shortest period WorkManager allows.
+    private fun scheduleReservationCheck() {
+        val request = PeriodicWorkRequestBuilder<ReservationCheckWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "reservation_check",
             ExistingPeriodicWorkPolicy.KEEP,
             request
         )

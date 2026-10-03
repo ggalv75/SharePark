@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
 import com.sharepark.data.repository.VehicleRepository
+import com.sharepark.platform.notification.InAppAlerts
 import com.sharepark.ui.navigation.AppNavigation
 import com.sharepark.ui.theme.ShareParkTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -20,6 +21,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var vehicleRepository: VehicleRepository
+    @Inject lateinit var inAppAlerts: InAppAlerts
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,7 +32,8 @@ class MainActivity : ComponentActivity() {
             ShareParkTheme {
                 AppNavigation(
                     openReservationsFor = reservationsRequest,
-                    onReservationsOpened = { reservationsRequest = null }
+                    onReservationsOpened = { reservationsRequest = null },
+                    alerts = inAppAlerts.alerts
                 )
             }
         }

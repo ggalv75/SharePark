@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -46,7 +47,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import com.sharepark.platform.notification.InAppAlert
 import com.sharepark.platform.permissions.PermissionManager
+import com.sharepark.ui.components.InAppAlertBanner
 import com.sharepark.ui.screens.history.HistoryScreen
 import com.sharepark.ui.screens.map.MapScreen
 import com.sharepark.ui.screens.settings.AutomationZonesScreen
@@ -66,6 +72,8 @@ private val FULL_SCREEN_ROUTES = setOf(
     "reservations/{vehicleId}"
 )
 
+private const val ALERT_VISIBLE_MS = 6_000L
+
 sealed class Screen(val route: String, val label: String, val icon: @Composable () -> Unit) {
     object Map : Screen("map", "מפה", { Icon(Icons.Default.Map, contentDescription = "מפה") })
     object Vehicles : Screen("vehicles", "רכבים", { Icon(Icons.Default.DirectionsCar, contentDescription = "רכבים") })
@@ -77,9 +85,20 @@ sealed class Screen(val route: String, val label: String, val icon: @Composable 
 @Composable
 fun AppNavigation(
     openReservationsFor: Long? = null,
-    onReservationsOpened: () -> Unit = {}
+    onReservationsOpened: () -> Unit = {},
+    alerts: Flow<InAppAlert> = emptyFlow()
 ) {
     val navController = rememberNavController()
+
+    // A banner over whatever screen is open, e.g. when another member books a shared car.
+    var alert by remember { mutableStateOf<InAppAlert?>(null) }
+    LaunchedEffect(alerts) { alerts.collect { alert = it } }
+    LaunchedEffect(alert) {
+        if (alert != null) {
+            delay(ALERT_VISIBLE_MS)
+            alert = null
+        }
+    }
 
     // Tapping a reservation notification lands on that car's reservations.
     LaunchedEffect(openReservationsFor) {
@@ -187,77 +206,91 @@ fun AppNavigation(
             }
         }
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Map.route,
-            // Consume what the outer Scaffold already padded so each screen's own header/Scaffold
-            // doesn't add the status/navigation bar insets a second time.
-            modifier = Modifier
-                .padding(innerPadding)
-                .consumeWindowInsets(innerPadding),
-            enterTransition = {
-                fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.97f)
-            },
-            exitTransition = {
-                fadeOut(tween(150))
-            },
-            popEnterTransition = {
-                fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.97f)
-            },
-            popExitTransition = {
-                fadeOut(tween(150))
-            }
-        ) {
-            composable(Screen.Map.route) {
-                MapScreen(
-                    onFullScreenChange = { isMapFullScreen = it }
-                )
-            }
-            composable(Screen.Vehicles.route) {
-                VehiclesScreen(
-                    onNavigateToAddVehicle = { navController.navigate("add_vehicle") },
-                    onNavigateToReservations = { vehicleId -> navController.navigate("reservations/$vehicleId") }
-                )
-            }
-            composable(
-                route = "reservations/{vehicleId}",
-                arguments = listOf(navArgument("vehicleId") { type = NavType.LongType })
+        Box(modifier = Modifier.fillMaxSize()) {
+            NavHost(
+                navController = navController,
+                startDestination = Screen.Map.route,
+                // Consume what the outer Scaffold already padded so each screen's own header/Scaffold
+                // doesn't add the status/navigation bar insets a second time.
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding),
+                enterTransition = {
+                    fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.97f)
+                },
+                exitTransition = {
+                    fadeOut(tween(150))
+                },
+                popEnterTransition = {
+                    fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.97f)
+                },
+                popExitTransition = {
+                    fadeOut(tween(150))
+                }
             ) {
-                ReservationsScreen(
-                    onNavigateBack = { navController.popBackStack() }
-                )
+                composable(Screen.Map.route) {
+                    MapScreen(
+                        onFullScreenChange = { isMapFullScreen = it }
+                    )
+                }
+                composable(Screen.Vehicles.route) {
+                    VehiclesScreen(
+                        onNavigateToAddVehicle = { navController.navigate("add_vehicle") },
+                        onNavigateToReservations = { vehicleId -> navController.navigate("reservations/$vehicleId") }
+                    )
+                }
+                composable(
+                    route = "reservations/{vehicleId}",
+                    arguments = listOf(navArgument("vehicleId") { type = NavType.LongType })
+                ) {
+                    ReservationsScreen(
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+                composable("add_vehicle") {
+                    AddVehicleScreen(
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+                composable(Screen.History.route) {
+                    HistoryScreen()
+                }
+                composable(Screen.Settings.route) {
+                    SettingsScreen(
+                        onNavigateToTrustedContacts = { navController.navigate("trusted_contacts") },
+                        onNavigateToWhatsAppAutomation = { navController.navigate("wa_automation") },
+                        onNavigateToAutomationZones = { navController.navigate("automation_zones") }
+                    )
+                }
+                composable("trusted_contacts") {
+                    TrustedContactsScreen(
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+                composable("wa_automation") {
+                    WhatsAppAutomationScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToZones = { navController.navigate("automation_zones") }
+                    )
+                }
+                composable("automation_zones") {
+                    AutomationZonesScreen(
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
             }
-            composable("add_vehicle") {
-                AddVehicleScreen(
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
-            composable(Screen.History.route) {
-                HistoryScreen()
-            }
-            composable(Screen.Settings.route) {
-                SettingsScreen(
-                    onNavigateToTrustedContacts = { navController.navigate("trusted_contacts") },
-                    onNavigateToWhatsAppAutomation = { navController.navigate("wa_automation") },
-                    onNavigateToAutomationZones = { navController.navigate("automation_zones") }
-                )
-            }
-            composable("trusted_contacts") {
-                TrustedContactsScreen(
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
-            composable("wa_automation") {
-                WhatsAppAutomationScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    onNavigateToZones = { navController.navigate("automation_zones") }
-                )
-            }
-            composable("automation_zones") {
-                AutomationZonesScreen(
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
+
+            InAppAlertBanner(
+                alert = alert,
+                onOpen = { vehicleId ->
+                    alert = null
+                    navController.navigate("reservations/$vehicleId")
+                },
+                onDismiss = { alert = null },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(innerPadding)
+            )
         }
     }
 }

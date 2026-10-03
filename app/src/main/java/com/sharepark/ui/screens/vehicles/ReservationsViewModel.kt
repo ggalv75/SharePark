@@ -15,6 +15,7 @@ import com.sharepark.platform.calendar.DeviceCalendar
 import com.sharepark.platform.calendar.ReservationCalendarSync
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -117,6 +118,33 @@ class ReservationsViewModel @Inject constructor(
     fun onCalendarPermissionResult(granted: Boolean) {
         _hasCalendarPermission.value = granted
         if (granted) calendarStore.setEnabled(true) else calendarStore.onPermissionChanged()
+        refreshCalendars()
+    }
+
+    /** The calendars a booking can go to, and the one it goes to now. */
+    private val _calendars = MutableStateFlow<List<DeviceCalendar.CalendarInfo>>(emptyList())
+    val calendars: StateFlow<List<DeviceCalendar.CalendarInfo>> = _calendars.asStateFlow()
+
+    private val _targetCalendar = MutableStateFlow<DeviceCalendar.CalendarInfo?>(null)
+    val targetCalendar: StateFlow<DeviceCalendar.CalendarInfo?> = _targetCalendar.asStateFlow()
+
+    init {
+        refreshCalendars()
+    }
+
+    private fun refreshCalendars() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val calendars = DeviceCalendar.writableCalendars(context)
+            _calendars.value = calendars
+            _targetCalendar.value = calendars.firstOrNull { it.id == calendarStore.chosenCalendarId }
+                ?: calendars.firstOrNull()
+        }
+    }
+
+    /** Upcoming bookings move to the new calendar on the next sync, which this triggers. */
+    fun chooseCalendar(calendar: DeviceCalendar.CalendarInfo) {
+        calendarStore.chooseCalendar(calendar.id)
+        _targetCalendar.value = calendar
     }
 
     /** Switching off takes this phone's upcoming bookings back out of the calendar. */

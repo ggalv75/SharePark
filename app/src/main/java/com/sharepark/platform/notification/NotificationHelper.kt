@@ -157,9 +157,9 @@ object NotificationHelper {
     fun showReservationNotification(
         context: Context,
         vehicleId: Long,
-        vehicleName: String,
-        reservedByName: String,
-        slot: String
+        reservationId: String,
+        title: String,
+        text: String
     ) {
         createNotificationChannels(context)
 
@@ -174,14 +174,19 @@ object NotificationHelper {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_EVENTS_ID)
-            .setContentTitle("$reservedByName שריין את $vehicleName 📅")
-            .setContentText(slot)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setSmallIcon(android.R.drawable.ic_menu_my_calendar)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
             .build()
 
+        // Tagged per booking, so two bookings made back to back both stay in the shade.
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(RESERVATION_NOTIFICATION_ID_BASE + vehicleId.toInt(), notification)
+        manager.notify("reservation:$reservationId", RESERVATION_NOTIFICATION_ID_BASE, notification)
     }
 }

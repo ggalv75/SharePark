@@ -2,12 +2,12 @@ package com.sharepark.data.remote.cloud
 
 import android.util.Log
 import com.google.firebase.Timestamp
-import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.Source
 import com.sharepark.domain.model.Reservation
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -309,27 +309,16 @@ class SharedVehicleRepository @Inject constructor(
     }
 
     /**
-     * Reservations made since [sinceMillis] by members other than [myUid] — the new bookings
-     * worth a notification. Emits only additions, so the initial snapshot after a restart is
-     * filtered by [sinceMillis] rather than replayed.
+     * One-shot read of the car's reservations that haven't ended, straight from the server — for
+     * the background check that runs while no listener is alive.
      */
-    fun observeNewReservations(cloudId: String, myUid: String, sinceMillis: Long): Flow<Reservation> = callbackFlow {
-        val registration = vehicleRef(cloudId).collection(RESERVATIONS)
-            .whereGreaterThanOrEqualTo("createdAt", sinceMillis)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    Log.w(TAG, "New-reservation listener for $cloudId stopped", error)
-                    close()
-                    return@addSnapshotListener
-                }
-                snapshot?.documentChanges.orEmpty()
-                    .filter { it.type == DocumentChange.Type.ADDED }
-                    .mapNotNull { it.document.toReservation() }
-                    .filter { it.reservedByUid != myUid }
-                    .forEach { trySend(it) }
-            }
-        awaitClose { registration.remove() }
-    }
+    suspend fun upcomingReservations(cloudId: String): List<Reservation> =
+        vehicleRef(cloudId).collection(RESERVATIONS)
+            .whereGreaterThan("endAt", System.currentTimeMillis())
+            .get(Source.SERVER)
+            .await()
+            .documents
+            .mapNotNull { it.toReservation() }
 
     /** Removes slots that ended before [endedBefore] — same 30-day window as the parkings. */
     suspend fun deleteReservations(cloudId: String, endedBefore: Long) {

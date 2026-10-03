@@ -3,6 +3,8 @@ package com.sharepark.ui.screens.vehicles
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Switch
@@ -91,6 +94,9 @@ fun ReservationsScreen(
     val isSaving by viewModel.isSaving.collectAsState()
     val message by viewModel.message.collectAsState()
     val calendarSyncOn by viewModel.calendarSyncOn.collectAsState()
+    val calendars by viewModel.calendars.collectAsState()
+    val targetCalendar by viewModel.targetCalendar.collectAsState()
+    var showCalendarPicker by rememberSaveable { mutableStateOf(false) }
     val calendarPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results -> viewModel.onCalendarPermissionResult(results.values.all { it }) }
@@ -117,6 +123,18 @@ fun ReservationsScreen(
                 viewModel.reserve(start, end, note) { showAdd = false }
             },
             onDismiss = { showAdd = false }
+        )
+    }
+
+    if (showCalendarPicker) {
+        CalendarPickerDialog(
+            calendars = calendars,
+            selectedId = targetCalendar?.id,
+            onPick = { calendar ->
+                viewModel.chooseCalendar(calendar)
+                showCalendarPicker = false
+            },
+            onDismiss = { showCalendarPicker = false }
         )
     }
 
@@ -197,6 +215,9 @@ fun ReservationsScreen(
                 item {
                     CalendarSyncCard(
                         isOn = calendarSyncOn,
+                        targetCalendar = targetCalendar,
+                        // Only worth a choice when there's more than one calendar.
+                        onChangeCalendar = { showCalendarPicker = true }.takeIf { calendars.size > 1 },
                         onToggle = { on ->
                             if (!on) viewModel.turnOffCalendarSync()
                             else calendarPermissionLauncher.launch(DeviceCalendar.PERMISSIONS)
@@ -264,7 +285,12 @@ private fun NowStatusCard(current: Reservation?, myUid: String?) {
 }
 
 @Composable
-private fun CalendarSyncCard(isOn: Boolean, onToggle: (Boolean) -> Unit) {
+private fun CalendarSyncCard(
+    isOn: Boolean,
+    targetCalendar: DeviceCalendar.CalendarInfo?,
+    onChangeCalendar: (() -> Unit)?,
+    onToggle: (Boolean) -> Unit
+) {
     AppCard(contentPadding = PaddingValues(start = 18.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBadge(
@@ -279,15 +305,79 @@ private fun CalendarSyncCard(isOn: Boolean, onToggle: (Boolean) -> Unit) {
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = if (isOn) "כל שריון של הרכב נכנס אוטומטית ליומן בטלפון הזה"
-                           else "השריונים לא נכנסים ליומן בטלפון הזה",
+                    text = when {
+                        !isOn -> "השריונים לא נכנסים ליומן בטלפון הזה"
+                        targetCalendar != null -> "כל שריון של הרכב נכנס אוטומטית ליומן: ${targetCalendar.label}"
+                        else -> "כל שריון של הרכב נכנס אוטומטית ליומן בטלפון הזה"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MutedText
                 )
+                if (isOn && targetCalendar != null && !targetCalendar.isGoogle) {
+                    Text(
+                        text = "יומן זה שמור רק בטלפון ולא מסתנכרן ל-Google Calendar",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                if (isOn && onChangeCalendar != null) {
+                    Text(
+                        text = "החלף יומן",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .padding(top = 4.dp)
+                            .clickable(onClick = onChangeCalendar)
+                            .padding(vertical = 4.dp)
+                    )
+                }
             }
             Switch(checked = isOn, onCheckedChange = onToggle)
         }
     }
+}
+
+@Composable
+private fun CalendarPickerDialog(
+    calendars: List<DeviceCalendar.CalendarInfo>,
+    selectedId: Long?,
+    onPick: (DeviceCalendar.CalendarInfo) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("לאיזה יומן להוסיף?") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                calendars.forEach { calendar ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPick(calendar) }
+                            .padding(vertical = 4.dp)
+                    ) {
+                        RadioButton(selected = calendar.id == selectedId, onClick = { onPick(calendar) })
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = calendar.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (calendar.isGoogle) "Google · ${calendar.accountName}" else "בטלפון בלבד",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MutedText
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("סגור") }
+        }
+    )
 }
 
 @Composable

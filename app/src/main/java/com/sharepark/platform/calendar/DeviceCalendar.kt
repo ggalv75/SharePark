@@ -14,6 +14,7 @@ import java.util.TimeZone
 object DeviceCalendar {
 
     private const val TAG = "DeviceCalendar"
+    private const val GOOGLE_ACCOUNT_TYPE = "com.google"
 
     val PERMISSIONS = arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
 
@@ -21,38 +22,71 @@ object DeviceCalendar {
         ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
     }
 
+    /** A calendar on the phone that events can be added to. */
+    data class CalendarInfo(val id: Long, val name: String, val accountName: String, val isGoogle: Boolean) {
+        /** "Work (gal@gmail.com)", or just the account when the calendar is named after it. */
+        val label: String get() = if (name == accountName || accountName.isBlank()) name else "$name ($accountName)"
+    }
+
     /**
-     * The calendar new events go to: the primary one of a writable, visible calendar if there is
-     * one (normally the Google account's own calendar), otherwise the first writable calendar.
+     * Writable, visible calendars, best default first: a Google account's own calendar, then its
+     * other calendars, then everything else. Phone-local calendars ("My calendar" on Samsung and
+     * others) are often flagged primary too but never reach Google Calendar, so they come last.
      */
-    fun defaultCalendarId(context: Context): Long? {
-        if (!hasPermission(context)) return null
+    fun writableCalendars(context: Context): List<CalendarInfo> {
+        if (!hasPermission(context)) return emptyList()
         val projection = arrayOf(
             CalendarContract.Calendars._ID,
-            CalendarContract.Calendars.IS_PRIMARY,
-            CalendarContract.Calendars.ACCOUNT_TYPE
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+            CalendarContract.Calendars.ACCOUNT_NAME,
+            CalendarContract.Calendars.ACCOUNT_TYPE,
+            CalendarContract.Calendars.OWNER_ACCOUNT,
+            CalendarContract.Calendars.IS_PRIMARY
         )
         val selection = "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ? AND " +
             "${CalendarContract.Calendars.VISIBLE} = 1"
         val args = arrayOf(CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR.toString())
 
+        data class Row(val info: CalendarInfo, val rank: Int)
         return try {
             context.contentResolver.query(CalendarContract.Calendars.CONTENT_URI, projection, selection, args, null)
                 ?.use { cursor ->
-                    var fallback: Long? = null
-                    var google: Long? = null
-                    while (cursor.moveToNext()) {
-                        val id = cursor.getLong(0)
-                        if (cursor.getInt(1) == 1) return@use id
-                        if (google == null && cursor.getString(2) == "com.google") google = id
-                        if (fallback == null) fallback = id
+                    buildList {
+                        while (cursor.moveToNext()) {
+                            val accountName = cursor.getString(2).orEmpty()
+                            val isGoogle = cursor.getString(3) == GOOGLE_ACCOUNT_TYPE
+                            val isPrimary = cursor.getInt(5) == 1
+                            // A Google account's own calendar is owned by the account itself.
+                            val isOwnCalendar = cursor.getString(4) == accountName
+                            val rank = when {
+                                isGoogle && (isPrimary || isOwnCalendar) -> 0
+                                isGoogle -> 1
+                                isPrimary -> 2
+                                else -> 3
+                            }
+                            val info = CalendarInfo(
+                                id = cursor.getLong(0),
+                                name = cursor.getString(1)?.takeIf { it.isNotBlank() } ?: accountName,
+                                accountName = accountName,
+                                isGoogle = isGoogle
+                            )
+                            add(Row(info, rank))
+                        }
                     }
-                    google ?: fallback
                 }
+                .orEmpty()
+                .sortedBy { it.rank }
+                .map { it.info }
         } catch (e: SecurityException) {
             Log.w(TAG, "Calendar query denied", e)
-            null
+            emptyList()
         }
+    }
+
+    /** The calendar new events go to: [chosenId] if it's still there, otherwise the best default. */
+    fun targetCalendar(context: Context, chosenId: Long?): CalendarInfo? {
+        val calendars = writableCalendars(context)
+        return calendars.firstOrNull { it.id == chosenId } ?: calendars.firstOrNull()
     }
 
     /** Returns the new event's id, or null if the provider refused it. */
