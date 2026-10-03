@@ -8,10 +8,9 @@ import com.sharepark.data.remote.cloud.CloudParking
 import com.sharepark.data.remote.cloud.SharedVehicleRepository
 import com.sharepark.data.repository.ParkingRepository
 import com.sharepark.data.repository.VehicleRepository
-import com.sharepark.domain.model.Reservation
-import com.sharepark.domain.usecase.ReservationFormat
 import com.sharepark.platform.calendar.ReservationCalendarSync
 import com.sharepark.platform.notification.NotificationHelper
+import com.sharepark.platform.notification.ReservationNotifier
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +21,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
-import java.util.Collections
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,12 +38,11 @@ class SharedParkingSync @Inject constructor(
     private val vehicleRepository: VehicleRepository,
     private val parkingRepository: ParkingRepository,
     private val calendarStore: ReservationCalendarStore,
-    private val calendarSync: ReservationCalendarSync
+    private val calendarSync: ReservationCalendarSync,
+    private val reservationNotifier: ReservationNotifier
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
-    // Listeners restart when the set of shared cars changes; don't announce the same booking twice.
-    private val notifiedReservations = Collections.synchronizedSet(mutableSetOf<String>())
 
     private data class Link(val vehicleId: Long, val cloudId: String, val name: String)
 
@@ -75,10 +72,12 @@ class SharedParkingSync @Inject constructor(
                                     }
                             }
                             launch {
-                                // Only bookings made from now on — not the ones already there.
-                                sharedVehicleRepository
-                                    .observeNewReservations(link.cloudId, user.uid, System.currentTimeMillis())
-                                    .collect { notifyReservation(link, it) }
+                                // Bookings this phone hasn't announced yet — including ones made
+                                // while the app was closed.
+                                sharedVehicleRepository.observeReservations(link.cloudId, serverOnly = true)
+                                    .collect {
+                                        reservationNotifier.onReservations(link.vehicleId, link.cloudId, link.name, user.uid, it)
+                                    }
                             }
                             launch {
                                 // Re-run when the calendar becomes usable, not only on new bookings.
@@ -124,17 +123,6 @@ class SharedParkingSync @Inject constructor(
                 address = parking.address ?: "${parking.latitude}, ${parking.longitude}"
             )
         }
-    }
-
-    private fun notifyReservation(link: Link, reservation: Reservation) {
-        if (!notifiedReservations.add(reservation.id)) return
-        NotificationHelper.showReservationNotification(
-            context = context,
-            vehicleId = link.vehicleId,
-            vehicleName = link.name,
-            reservedByName = reservation.reservedByName,
-            slot = ReservationFormat.slot(reservation.startAt, reservation.endAt)
-        )
     }
 
     private companion object {

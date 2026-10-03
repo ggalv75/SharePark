@@ -34,18 +34,25 @@ class ReservationCalendarSync @Inject constructor(
         mutex.withLock {
             if (!isActive) return@withLock
             val now = System.currentTimeMillis()
+            val calendarId = DeviceCalendar.targetCalendar(context, store.chosenCalendarId)?.id
             val mapped = store.entries().filter { it.cloudId == cloudId }
-            val mappedIds = mapped.mapTo(HashSet()) { it.reservationId }
             val liveIds = reservations.mapTo(HashSet()) { it.id }
 
-            mapped.filter { it.reservationId !in liveIds }.forEach { entry ->
+            // Cancelled bookings leave the calendar. So do upcoming ones sitting in a calendar
+            // that isn't the target any more (the user picked another one, or older versions
+            // put them in the phone-only calendar) — they're re-added in the right one below.
+            val kept = mapped.filter { entry ->
+                val cancelled = entry.reservationId !in liveIds
+                val misplaced = calendarId != null && entry.calendarId != calendarId && entry.endAt > now
+                if (!cancelled && !misplaced) return@filter true
                 if (entry.endAt > now) DeviceCalendar.deleteEvent(context, entry.eventId)
                 store.remove(entry.reservationId)
+                false
             }
+            val keptIds = kept.mapTo(HashSet()) { it.reservationId }
 
-            val toAdd = reservations.filter { it.id !in mappedIds && it.endAt > now }
-            if (toAdd.isEmpty()) return@withLock
-            val calendarId = DeviceCalendar.defaultCalendarId(context) ?: return@withLock
+            val toAdd = reservations.filter { it.id !in keptIds && it.endAt > now }
+            if (toAdd.isEmpty() || calendarId == null) return@withLock
             toAdd.forEach { reservation ->
                 val eventId = DeviceCalendar.insertEvent(
                     context = context,
@@ -55,7 +62,7 @@ class ReservationCalendarSync @Inject constructor(
                     startAt = reservation.startAt,
                     endAt = reservation.endAt
                 ) ?: return@forEach
-                store.put(CalendarEntry(reservation.id, eventId, cloudId, reservation.endAt))
+                store.put(CalendarEntry(reservation.id, eventId, cloudId, reservation.endAt, calendarId))
             }
         }
 
