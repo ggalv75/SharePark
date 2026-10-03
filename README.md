@@ -267,6 +267,26 @@ firebase deploy --only firestore:rules --project <your-project-id>
 The APK lands in `app/build/outputs/apk/debug/` named after the version, e.g.
 `SharePark-V1.1-debug.apk`.
 
+#### Release build
+
+Release APKs are signed with a key that stays off the repo. Create it once:
+
+```bash
+keytool -genkeypair -v -keystore C:/Users/you/keys/sharepark-release.jks -alias sharepark -keyalg RSA -keysize 4096 -validity 10000
+```
+
+Copy [`keystore.properties.example`](keystore.properties.example) to `keystore.properties`
+(git-ignored), point `storeFile` at the key and fill in the passwords, then:
+
+```bash
+./gradlew assembleRelease
+```
+
+The APK lands in `app/build/outputs/apk/release/`, e.g. `SharePark-V1.1-release.apk`.
+**Back up the `.jks` file and its passwords**: every future update must be signed with the same
+key, and a phone refuses an update signed with a different one. Without `keystore.properties`
+the release APK is built unsigned and can't be installed.
+
 ### Versioning
 
 Releases are numbered **V1.X**: each release bumps `versionName` (1.0 → 1.1 → 1.2 …) and
