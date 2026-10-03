@@ -15,26 +15,34 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/** Every car the map can page through, each with its current parking (if any). */
+data class MapCars(
+    val vehicles: List<Vehicle>,
+    val parkings: Map<Long, ParkingRecord>
+) {
+    val activeIndex: Int get() = vehicles.indexOfFirst { it.isActive }.coerceAtLeast(0)
+    val activeVehicle: Vehicle? get() = vehicles.getOrNull(activeIndex)
+}
+
 @HiltViewModel
 class MapViewModel @Inject constructor(
     private val vehicleRepository: VehicleRepository,
-    private val parkingRepository: ParkingRepository,
-    private val trustedContactRepository: TrustedContactRepository,
+    parkingRepository: ParkingRepository,
+    trustedContactRepository: TrustedContactRepository,
     private val shareLocationUseCase: ShareLocationUseCase
 ) : ViewModel() {
 
-    val activeVehicle: StateFlow<Vehicle?> = vehicleRepository.activeVehicle
-        .stateIn(viewModelScope, SharingStarted.Lazily, null)
-
-    val currentParking: StateFlow<ParkingRecord?> = activeVehicle.flatMapLatest { vehicle ->
-        if (vehicle == null) flowOf(null)
-        else parkingRepository.getCurrentParkingForVehicle(vehicle.id)
+    /** Null until the database has answered, so the screen doesn't flash an empty state. */
+    val cars: StateFlow<MapCars?> = combine(
+        vehicleRepository.allVehicles,
+        parkingRepository.allCurrentParkings
+    ) { vehicles, parkings ->
+        MapCars(vehicles, parkings.associateBy { it.vehicleId })
     }.stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     val trustedContacts: StateFlow<List<TrustedContact>> = trustedContactRepository.allContacts
@@ -43,24 +51,21 @@ class MapViewModel @Inject constructor(
     private val _shareTextEvent = MutableSharedFlow<String>()
     val shareTextEvent: SharedFlow<String> = _shareTextEvent.asSharedFlow()
 
-    fun shareParkingLocation() {
-        val vehicle = activeVehicle.value ?: return
-        val record = currentParking.value ?: return
-
-        viewModelScope.launch {
-            val shareText = shareLocationUseCase(
-                vehicleName = vehicle.name,
-                address = record.address,
-                latitude = record.latitude,
-                longitude = record.longitude
-            )
-            _shareTextEvent.emit(shareText)
-        }
+    /** Swiping to a car makes it the active one, so History and the rest of the app follow. */
+    fun selectVehicle(vehicleId: Long) {
+        if (cars.value?.activeVehicle?.id == vehicleId) return
+        viewModelScope.launch { vehicleRepository.setActiveVehicle(vehicleId) }
     }
 
-    fun buildShareText(): String? {
-        val vehicle = activeVehicle.value ?: return null
-        val record = currentParking.value ?: return null
+    fun shareParkingLocation(vehicleId: Long) {
+        val shareText = buildShareText(vehicleId) ?: return
+        viewModelScope.launch { _shareTextEvent.emit(shareText) }
+    }
+
+    fun buildShareText(vehicleId: Long): String? {
+        val state = cars.value ?: return null
+        val vehicle = state.vehicles.firstOrNull { it.id == vehicleId } ?: return null
+        val record = state.parkings[vehicleId] ?: return null
         return shareLocationUseCase(
             vehicleName = vehicle.name,
             address = record.address,

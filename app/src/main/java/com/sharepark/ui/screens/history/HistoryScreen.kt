@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -33,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sharepark.domain.model.ParkingRecord
@@ -42,6 +44,7 @@ import com.sharepark.ui.components.ScreenHeader
 import com.sharepark.ui.components.SectionHeader
 import com.sharepark.ui.components.rememberBreathingScale
 import com.sharepark.ui.components.simpleVerticalScrollbar
+import com.sharepark.ui.screens.map.parkedByLabel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -94,6 +97,7 @@ fun HistoryScreen(
                     items(parkingHistory) { record ->
                         HistoryCard(
                             record = record,
+                            parkedBy = activeVehicle?.let { parkedByLabel(record, it) },
                             onNavigate = { lat, lng ->
                                 // Walking directions — you're on foot looking for the car, not driving to it.
                                 val gmmIntentUri = Uri.parse("google.navigation:q=$lat,$lng&mode=w")
@@ -145,6 +149,7 @@ private fun EmptyHistory(title: String, message: String) {
 @Composable
 fun HistoryCard(
     record: ParkingRecord,
+    parkedBy: String?,
     onNavigate: (Double, Double) -> Unit
 ) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
@@ -190,7 +195,6 @@ fun HistoryCard(
                 val details = buildList {
                     add(timeString)
                     if (record.vehicleName.isNotBlank()) add(record.vehicleName)
-                    record.parkedByName?.let { add(it) }
                     add("±${record.accuracy.toInt()} מ׳")
                 }
                 Text(
@@ -198,6 +202,26 @@ fun HistoryCard(
                     style = MaterialTheme.typography.bodyMedium,
                     color = muted
                 )
+
+                // On a shared car: which of the partners parked it
+                parkedBy?.let {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "החנה: $it",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
 
             Icon(
