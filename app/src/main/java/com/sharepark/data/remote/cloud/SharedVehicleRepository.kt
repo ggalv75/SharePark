@@ -223,7 +223,7 @@ class SharedVehicleRepository @Inject constructor(
         val registration = vehicleRef(cloudId).collection(PARKINGS)
             .whereGreaterThanOrEqualTo("parkedAt", sinceMillis)
             .orderBy("parkedAt", Query.Direction.DESCENDING)
-            .limit(OBSERVE_LIMIT)
+            .limit(PARKINGS_OBSERVE_LIMIT)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.w(TAG, "Parking listener for $cloudId stopped", error)
@@ -379,6 +379,9 @@ class SharedVehicleRepository @Inject constructor(
         private const val RESERVATIONS = "reservations"
         private const val NOTE_MAX_LENGTH = 200
         private const val OBSERVE_LIMIT = 50L
+        // The whole history window, not just the latest few: after a reinstall this listener is
+        // what brings the car's history back. 30 days of a family car stays well under it.
+        private const val PARKINGS_OBSERVE_LIMIT = 1000L
         private const val BATCH_LIMIT = 400
         private const val INVITE_TTL_HOURS = 48L
 
