@@ -12,6 +12,7 @@ import com.sharepark.data.remote.cloud.CloudUser
 import com.sharepark.data.remote.cloud.SharedVehicleRepository
 import com.sharepark.data.remote.cloud.SharingException
 import com.sharepark.data.remote.cloud.SignInResult
+import com.sharepark.data.remote.cloud.VehicleMember
 import com.sharepark.data.repository.ParkingRepository
 import com.sharepark.data.repository.VehicleRepository
 import com.sharepark.domain.usecase.PublishSharedParkingUseCase
@@ -19,6 +20,7 @@ import com.sharepark.domain.model.Vehicle
 import com.sharepark.platform.calendar.DeviceCalendar
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -201,6 +203,9 @@ class VehiclesViewModel @Inject constructor(
             _sharingState.value = SharingState.Message("הצטרפת ל\"$name\" — החניות שלו יופיעו כאן בזמן אמת")
         }
     }
+
+    /** Live list of who [cloudId] is shared with, for the shared-car options dialog. */
+    fun members(cloudId: String): Flow<List<VehicleMember>> = sharedVehicleRepository.observeMembers(cloudId)
 
     /** Stops sharing on this phone: leaves the cloud car but keeps it (and its history) locally. */
     fun stopSharing(vehicle: Vehicle) {

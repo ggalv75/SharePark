@@ -59,6 +59,7 @@ import com.sharepark.ui.components.PrimaryPillButton
 import com.sharepark.ui.components.ScreenHeader
 import com.sharepark.ui.components.rememberBreathingScale
 import com.sharepark.ui.components.simpleVerticalScrollbar
+import kotlinx.coroutines.flow.flowOf
 
 @Composable
 fun VehiclesScreen(
@@ -92,8 +93,12 @@ fun VehiclesScreen(
     )
 
     sharedVehicleOptions?.let { vehicle ->
+        val members by remember(vehicle.cloudId) {
+            vehicle.cloudId?.let(viewModel::members) ?: flowOf(emptyList())
+        }.collectAsState(initial = null)
         SharedVehicleOptionsDialog(
             vehicle = vehicle,
+            members = members,
             onInvite = {
                 sharedVehicleOptions = null
                 viewModel.shareVehicle(vehicle)

@@ -66,6 +66,8 @@ class SharedParkingSync @Inject constructor(
                     val since = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(HISTORY_DAYS)
                     coroutineScope {
                         links.forEach { link ->
+                            // Members who joined on an older version have no name on the car yet.
+                            launch { sharedVehicleRepository.publishMyName(link.cloudId) }
                             launch {
                                 sharedVehicleRepository.observeParkings(link.cloudId, since)
                                     .collect { parkings ->

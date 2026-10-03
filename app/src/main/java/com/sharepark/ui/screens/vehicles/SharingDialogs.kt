@@ -1,6 +1,15 @@
 package com.sharepark.ui.screens.vehicles
 
 import android.content.Intent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.ui.draw.clip
+import com.sharepark.data.remote.cloud.VehicleMember
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -237,10 +246,14 @@ private fun LinkOptionRow(vehicle: Vehicle?, onClick: () -> Unit) {
     }
 }
 
-/** Options for a car that's already shared. */
+/**
+ * Options for a car that's already shared, with who it's shared with. [members] is null while
+ * the list is still loading.
+ */
 @Composable
 fun SharedVehicleOptionsDialog(
     vehicle: Vehicle,
+    members: List<VehicleMember>?,
     onInvite: () -> Unit,
     onStopSharing: () -> Unit,
     onDismiss: () -> Unit
@@ -249,13 +262,44 @@ fun SharedVehicleOptionsDialog(
         onDismissRequest = onDismiss,
         title = { Text("\"${vehicle.name}\" משותף") },
         text = {
-            Text(
-                if (vehicle.isViewOnly) {
-                    "אתה רואה את מיקום החנייה של הרכב הזה בזמן אמת. הפסקת השיתוף תסיר אותו מהטלפון."
-                } else {
-                    "כל מי שמשותף ברכב רואה כאן בזמן אמת איפה הוא חנה. הפסקת השיתוף משאירה את הרכב וההיסטוריה שלו אצלך."
+            Column {
+                Text(
+                    text = if (members.isNullOrEmpty()) "חברים ברכב" else "חברים ברכב (${members.size})",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                when {
+                    members == null -> Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
+                    }
+                    members.isEmpty() -> Text(
+                        "לא ניתן לטעון את רשימת השותפים — בדוק חיבור לאינטרנט.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    else -> Column(
+                        modifier = Modifier
+                            .heightIn(max = 240.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        members.forEach { MemberRow(it) }
+                    }
                 }
-            )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = if (vehicle.isViewOnly) {
+                        "אתה רואה את מיקום החנייה של הרכב הזה בזמן אמת. הפסקת השיתוף תסיר אותו מהטלפון."
+                    } else {
+                        "כל מי שמשותף ברכב רואה כאן בזמן אמת איפה הוא חנה. הפסקת השיתוף משאירה את הרכב וההיסטוריה שלו אצלך."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
         },
         confirmButton = { TextButton(onClick = onInvite) { Text("הזמן שותף") } },
         dismissButton = {
@@ -264,4 +308,62 @@ fun SharedVehicleOptionsDialog(
             }
         }
     )
+}
+
+@Composable
+private fun MemberRow(member: VehicleMember) {
+    val name = member.name ?: "שותף"
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            if (member.name != null) {
+                Text(
+                    text = name.trim().take(1).uppercase(),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (member.isMe) "$name (אני)" else name,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (member.name == null) {
+                Text(
+                    text = "השם יופיע כשיעדכן את האפליקציה",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        }
+        if (member.isOwner) {
+            Text(
+                text = "יוצר השיתוף",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
+    }
 }

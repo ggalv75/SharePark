@@ -67,13 +67,13 @@ working detection and a crash loop on real hardware.
 | 🚗 **Multi-vehicle** | Register any number of cars by their paired Bluetooth device. Every registered car is monitored, and the disconnecting MAC address identifies which one just parked. |
 | 📍 **Automatic capture** | GPS fix taken at the moment of disconnect, with accuracy recorded. |
 | 🏠 **Address resolution** | Coordinates reverse-geocoded to a human-readable street address via the Google Geocoding API. |
-| 🗺️ **Live map** | Compose-native Google Maps view of the current parking spot, with a full-screen mode. |
+| 🗺️ **Live map** | Compose-native Google Maps view of the current parking spot. Swipe the details sheet down for a full-screen map, up to bring it back. |
 | 📜 **History** | Every parking event kept for 30 days, then pruned automatically by a WorkManager job. |
 | 💬 **WhatsApp automation** | Per-vehicle rules — each car can message a different trusted contact. |
 | 🎯 **Automation zones** | Mark addresses on the map with a radius each; the automated message only fires for parkings inside one of them. |
 | 🔒 **Deferred send** | If the phone is locked when you park, the message is queued and sent the moment you unlock. |
 | 👥 **Trusted contacts** | Saved recipients for quick manual sharing. |
-| 🤝 **Shared vehicles** | Several people share one car and all see, live, where it was last parked and by whom. |
+| 🤝 **Shared vehicles** | Several people share one car and all see, live, where it was last parked and by whom — and who else the car is shared with. |
 | 📅 **Reservations** | Book a shared car for a date and time slot; every member sees the booking right away. |
 | 🔁 **Survives reboot** | The Bluetooth receiver is declared in the manifest, so detection keeps working after a restart or app update; `BootReceiver` recreates the notification channels. |
 | 🌐 **RTL-first** | Hebrew UI with full right-to-left layout support. |
@@ -124,6 +124,10 @@ who parked.
   If they already registered the same car with its Bluetooth, they link to it and their phone
   detects parkings too. If not, they add it as **view-only**: they see where it is, but their
   phone never detects it.
+- **Members.** Tapping the share button on a car that's already shared lists everyone it's
+  shared with, live, with the member who created the share marked. Each member's display name
+  is kept in the car's `memberNames` map; members who joined before V1.1 are named once they
+  open the updated app.
 - **Sync.** A detected parking on a shared car is uploaded to
   `vehicles/{id}/parkings`. `SharedParkingSync` listens to every shared car and writes incoming
   parkings into the same Room tables, so the map, history and notifications need no special
@@ -139,7 +143,8 @@ who parked.
   switch on the reservations screen turns it off.
 - **Access control.** [`firestore.rules`](firestore.rules) limits a car, its parkings and its
   reservations to its members. Joining needs no server code: the joiner may only add their own uid, and only while
-  citing an unexpired invite for that car. The last member to leave deletes the car and its
+  citing an unexpired invite for that car. A member may change only their own entry in
+  `memberNames`. The last member to leave deletes the car and its
   history.
 
 "Live" means the parking spot, not live tracking while driving. The cloud keeps the same 30-day
@@ -258,6 +263,15 @@ firebase deploy --only firestore:rules --project <your-project-id>
 ./gradlew assembleDebug        # macOS / Linux
 .\gradlew.bat assembleDebug    # Windows
 ```
+
+The APK lands in `app/build/outputs/apk/debug/` named after the version, e.g.
+`SharePark-V1.1-debug.apk`.
+
+### Versioning
+
+Releases are numbered **V1.X**: each release bumps `versionName` (1.0 → 1.1 → 1.2 …) and
+`versionCode` (+1) in [`app/build.gradle.kts`](app/build.gradle.kts), gets a `v1.X` git tag, and
+is described in [`CHANGELOG.md`](CHANGELOG.md).
 
 ### First run
 
