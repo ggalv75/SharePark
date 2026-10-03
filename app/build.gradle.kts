@@ -22,6 +22,15 @@ val localProperties = Properties().apply {
     }
 }
 
+// Release signing key — keystore.properties at the repo root, git-ignored like the key itself
+// (see keystore.properties.example). Without it release builds come out unsigned.
+val keystoreProperties = Properties().apply {
+    val keystorePropertiesFile = rootProject.file("keystore.properties")
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
 android {
     namespace = "com.sharepark"
     compileSdk = 35
@@ -40,8 +49,20 @@ android {
         buildConfigField("String", "GEOCODING_BASE_URL", "\"https://maps.googleapis.com/\"")
     }
 
+    signingConfigs {
+        if (keystoreProperties.containsKey("storeFile")) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
