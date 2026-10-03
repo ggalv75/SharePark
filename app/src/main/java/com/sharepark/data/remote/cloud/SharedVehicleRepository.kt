@@ -117,6 +117,20 @@ class SharedVehicleRepository @Inject constructor(
     }
 
     /**
+     * Every shared car the signed-in user is a member of — what a fresh install (or a new phone)
+     * restores after signing in.
+     */
+    suspend fun myVehicles(): List<JoinedVehicle> {
+        val user = requireUser()
+        return db.collection(VEHICLES)
+            .whereArrayContains("memberUids", user.uid)
+            .get(Source.SERVER)
+            .await()
+            .documents
+            .map { JoinedVehicle(cloudId = it.id, name = it.getString("name") ?: "רכב משותף") }
+    }
+
+    /**
      * Stops sharing this car with the current user. The last member out deletes the vehicle
      * and its history, so nothing is left behind in the cloud.
      */

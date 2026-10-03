@@ -25,6 +25,9 @@ interface VehicleDao {
     @Query("SELECT * FROM vehicles WHERE cloud_id IS NOT NULL")
     suspend fun getLinkedVehiclesOnce(): List<VehicleEntity>
 
+    @Query("UPDATE vehicles SET bt_address = :btAddress, bt_name = :btName WHERE id = :vehicleId")
+    suspend fun setBluetooth(vehicleId: Long, btAddress: String, btName: String)
+
     @Query("UPDATE vehicles SET cloud_id = :cloudId WHERE id = :vehicleId")
     suspend fun setCloudId(vehicleId: Long, cloudId: String?)
 

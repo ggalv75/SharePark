@@ -89,6 +89,32 @@ object DeviceCalendar {
         return calendars.firstOrNull { it.id == chosenId } ?: calendars.firstOrNull()
     }
 
+    /**
+     * An event already in [calendarId] with exactly this title and time — one this app wrote
+     * before it lost track of it (reinstalled, data cleared). Adopting it avoids a duplicate.
+     */
+    fun findEvent(context: Context, calendarId: Long, title: String, startAt: Long, endAt: Long): Long? {
+        if (!hasPermission(context)) return null
+        val selection = "${CalendarContract.Events.CALENDAR_ID} = ? AND " +
+            "${CalendarContract.Events.TITLE} = ? AND " +
+            "${CalendarContract.Events.DTSTART} = ? AND " +
+            "${CalendarContract.Events.DTEND} = ? AND " +
+            "${CalendarContract.Events.DELETED} = 0"
+        val args = arrayOf(calendarId.toString(), title, startAt.toString(), endAt.toString())
+        return try {
+            context.contentResolver.query(
+                CalendarContract.Events.CONTENT_URI,
+                arrayOf(CalendarContract.Events._ID),
+                selection,
+                args,
+                null
+            )?.use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not look up calendar event", e)
+            null
+        }
+    }
+
     /** Returns the new event's id, or null if the provider refused it. */
     fun insertEvent(
         context: Context,

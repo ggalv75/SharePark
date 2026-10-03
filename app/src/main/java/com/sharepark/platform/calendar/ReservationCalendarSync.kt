@@ -54,14 +54,17 @@ class ReservationCalendarSync @Inject constructor(
             val toAdd = reservations.filter { it.id !in keptIds && it.endAt > now }
             if (toAdd.isEmpty() || calendarId == null) return@withLock
             toAdd.forEach { reservation ->
-                val eventId = DeviceCalendar.insertEvent(
-                    context = context,
-                    calendarId = calendarId,
-                    title = title(vehicleName, reservation, myUid),
-                    description = description(reservation),
-                    startAt = reservation.startAt,
-                    endAt = reservation.endAt
-                ) ?: return@forEach
+                val title = title(vehicleName, reservation, myUid)
+                val eventId = DeviceCalendar.findEvent(context, calendarId, title, reservation.startAt, reservation.endAt)
+                    ?: DeviceCalendar.insertEvent(
+                        context = context,
+                        calendarId = calendarId,
+                        title = title,
+                        description = description(reservation),
+                        startAt = reservation.startAt,
+                        endAt = reservation.endAt
+                    )
+                    ?: return@forEach
                 store.put(CalendarEntry(reservation.id, eventId, cloudId, reservation.endAt, calendarId))
             }
         }

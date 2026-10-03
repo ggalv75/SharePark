@@ -3,6 +3,9 @@ package com.sharepark.ui.screens.vehicles
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -73,6 +77,7 @@ fun VehiclesScreen(
     val context = LocalContext.current
     var vehicleBeingRenamed by remember { mutableStateOf<Vehicle?>(null) }
     var sharedVehicleOptions by remember { mutableStateOf<Vehicle?>(null) }
+    var vehicleToPair by remember { mutableStateOf<Vehicle?>(null) }
 
     val calendarPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -108,6 +113,20 @@ fun VehiclesScreen(
                 viewModel.stopSharing(vehicle)
             },
             onDismiss = { sharedVehicleOptions = null }
+        )
+    }
+
+    vehicleToPair?.let { vehicle ->
+        val bondedDevices by viewModel.bondedDevices.collectAsState()
+        LaunchedEffect(vehicle.id) { viewModel.loadBondedDevices() }
+        LinkBluetoothDialog(
+            vehicleName = vehicle.name,
+            devices = bondedDevices,
+            onPick = { device ->
+                viewModel.linkBluetooth(vehicle, device)
+                vehicleToPair = null
+            },
+            onDismiss = { vehicleToPair = null }
         )
     }
 
@@ -199,6 +218,11 @@ fun VehiclesScreen(
                             onSelect = { viewModel.setActiveVehicle(vehicle.id) },
                             onEdit = { vehicleBeingRenamed = vehicle },
                             onDelete = { viewModel.deleteVehicle(vehicle) },
+                            onLinkBluetooth = if (vehicle.isViewOnly) {
+                                { vehicleToPair = vehicle }
+                            } else {
+                                null
+                            },
                             onReservations = if (vehicle.isShared) {
                                 { onNavigateToReservations(vehicle.id) }
                             } else {
@@ -228,7 +252,8 @@ fun VehicleCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onShare: (() -> Unit)? = null,
-    onReservations: (() -> Unit)? = null
+    onReservations: (() -> Unit)? = null,
+    onLinkBluetooth: (() -> Unit)? = null
 ) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     AppCard(
@@ -298,6 +323,16 @@ fun VehicleCard(
                 }
             }
 
+            if (onLinkBluetooth != null) {
+                IconButton(onClick = onLinkBluetooth) {
+                    Icon(
+                        imageVector = Icons.Default.Bluetooth,
+                        contentDescription = "חבר Bluetooth של הרכב",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
             if (onShare != null) {
                 IconButton(onClick = onShare) {
                     Icon(
@@ -360,5 +395,67 @@ fun RenameVehicleDialog(
                 Text("ביטול")
             }
         }
+    )
+}
+
+/** Picks the car's paired Bluetooth device, so this phone detects when it's parked. */
+@Composable
+private fun LinkBluetoothDialog(
+    vehicleName: String,
+    devices: List<VehiclesViewModel.BondedDevice>,
+    onPick: (VehiclesViewModel.BondedDevice) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("חיבור Bluetooth ל\"$vehicleName\"") },
+        text = {
+            Column {
+                Text(
+                    text = "בחר את התקן ה-Bluetooth של הרכב, כדי שהטלפון הזה יזהה גם הוא מתי הרכב חונה.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                if (devices.isEmpty()) {
+                    Text(
+                        text = "לא נמצאו התקני Bluetooth מוצמדים. ודא שהרכב מוצמד בהגדרות הטלפון.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = 320.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        devices.forEach { device ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onPick(device) }
+                                    .padding(vertical = 12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Bluetooth,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(end = 12.dp)
+                                )
+                                Column {
+                                    Text(device.name, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        device.address,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("ביטול") } }
     )
 }

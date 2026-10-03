@@ -16,6 +16,10 @@ Versions are numbered **V1.X** (see *Versioning* in the README).
   notification (one per booking, tapping it opens the car's reservations) and, if the app is
   open, a banner at the top of the screen. Bookings made while the app was closed are announced
   too: on the next launch, and by a background check every ~15 minutes.
+- **Shared cars come back after reinstalling.** Signing in on a fresh install (or a new phone)
+  restores every car the account is a member of, with its parking history and reservations.
+  Restored cars are view-only until you tap the Bluetooth icon on the car and pick its device.
+  Reservations already in the calendar are reused instead of added twice.
 - **Pick the calendar for reservations.** The "הוספה ליומן" card shows which calendar bookings go
   to, offers "החלף יומן" when there is more than one, and warns when the chosen calendar is
   phone-only and doesn't sync to Google Calendar.

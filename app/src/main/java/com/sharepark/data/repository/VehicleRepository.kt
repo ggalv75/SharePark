@@ -41,6 +41,11 @@ class VehicleRepository @Inject constructor(
         vehicleDao.setCloudId(vehicleId, cloudId)
     }
 
+    /** Pairs a car (typically a view-only shared one) with its Bluetooth, so this phone detects it too. */
+    suspend fun setBluetooth(vehicleId: Long, btAddress: String, btName: String) {
+        vehicleDao.setBluetooth(vehicleId, btAddress, btName)
+    }
+
     /** A shared car this phone only watches — no Bluetooth device, so it's never detected here. */
     suspend fun insertViewOnlyVehicle(name: String, cloudId: String): Long {
         val entity = VehicleEntity(name = name, btAddress = "", btName = "", cloudId = cloudId)
