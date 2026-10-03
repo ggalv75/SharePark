@@ -265,7 +265,7 @@ firebase deploy --only firestore:rules --project <your-project-id>
 ```
 
 The APK lands in `app/build/outputs/apk/debug/` named after the version, e.g.
-`SharePark-V1.1-debug.apk`.
+`SharePark-V1.2-debug.apk`.
 
 #### Release build
 
@@ -282,7 +282,7 @@ Copy [`keystore.properties.example`](keystore.properties.example) to `keystore.p
 ./gradlew assembleRelease
 ```
 
-The APK lands in `app/build/outputs/apk/release/`, e.g. `SharePark-V1.1-release.apk`.
+The APK lands in `app/build/outputs/apk/release/`, e.g. `SharePark-V1.2-release.apk`.
 **Back up the `.jks` file and its passwords**: every future update must be signed with the same
 key, and a phone refuses an update signed with a different one. Without `keystore.properties`
 the release APK is built unsigned and can't be installed.

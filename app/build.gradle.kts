@@ -39,8 +39,8 @@ android {
         applicationId = "com.sharepark"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
 
         // Google Maps API Key — stored in local.properties
         val mapsApiKey: String = localProperties.getProperty("MAPS_API_KEY") ?: ""
@@ -85,7 +85,7 @@ android {
         buildConfig = true
     }
 
-    // Release naming: V<versionName>, e.g. SharePark-V1.1-debug.apk. Bump versionCode and
+    // Release naming: V<versionName>, e.g. SharePark-V1.2-debug.apk. Bump versionCode and
     // versionName together for every release, and record it in CHANGELOG.md.
     applicationVariants.all {
         outputs.all {
