@@ -2,7 +2,7 @@ rules_version = '2';
 
 // Shared vehicles. Deploy with:  firebase deploy --only firestore:rules
 //
-//   vehicles/{vehicleId}                  name, ownerUid, memberUids[], createdAt, joinCode
+//   vehicles/{vehicleId}                  name, ownerUid, memberUids[], memberNames{uid: name}, createdAt, joinCode
 //   vehicles/{vehicleId}/parkings/{key}   one per parking, written by the member who parked
 //   vehicles/{vehicleId}/reservations/{id} a time slot a member booked the car for
 //   invites/{code}                        vehicleId, createdBy, expiresAt
@@ -45,6 +45,23 @@ service cloud.firestore {
         && invite.data.expiresAt > request.time;
     }
 
+    // memberNames changes only at the caller's own entry.
+    function onlyOwnNameChanges() {
+      return request.resource.data.get('memberNames', {})
+        .diff(resource.data.get('memberNames', {}))
+        .affectedKeys().hasOnly([request.auth.uid]);
+    }
+
+    // A member sets (or, before leaving, removes) their own display name and nobody else's.
+    function isSettingOwnName() {
+      let names = request.resource.data.get('memberNames', {});
+      return onlyChanges(['memberNames'])
+        && request.auth.uid in oldMembers()
+        && onlyOwnNameChanges()
+        && (!(request.auth.uid in names)
+            || (names[request.auth.uid] is string && names[request.auth.uid].size() <= 100));
+    }
+
     // A member removes themself and nobody else.
     function isLeaving() {
       return onlyChanges(['memberUids'])
@@ -59,9 +76,10 @@ service cloud.firestore {
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.memberUids == [request.auth.uid]
         && request.resource.data.name is string
-        && request.resource.data.name.size() <= 100;
+        && request.resource.data.name.size() <= 100
+        && request.resource.data.get('memberNames', {}).keys().hasOnly([request.auth.uid]);
 
-      allow update: if signedIn() && (isValidJoin(vehicleId) || isLeaving());
+      allow update: if signedIn() && (isValidJoin(vehicleId) || isLeaving() || isSettingOwnName());
 
       // Only the last member out, which is how the app cleans up.
       allow delete: if signedIn() && resource.data.memberUids == [request.auth.uid];

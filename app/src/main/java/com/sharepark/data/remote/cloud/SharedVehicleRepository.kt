@@ -4,6 +4,7 @@ import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -32,12 +33,15 @@ data class CloudParking(
 
 data class JoinedVehicle(val cloudId: String, val name: String)
 
+/** Someone the car is shared with. [name] is null for members who joined before names were kept. */
+data class VehicleMember(val uid: String, val name: String?, val isOwner: Boolean, val isMe: Boolean)
+
 class SharingException(message: String) : Exception(message)
 
 /**
  * Firestore layout (enforced by firestore.rules at the repo root):
  *
- *   vehicles/{cloudId}                  name, ownerUid, memberUids[], createdAt, joinCode
+ *   vehicles/{cloudId}                  name, ownerUid, memberUids[], memberNames{uid: name}, createdAt, joinCode
  *   vehicles/{cloudId}/parkings/{key}   one document per parking, written by whoever parked
  *   vehicles/{cloudId}/reservations/{id} a time slot a member booked the car for
  *   invites/{code}                      vehicleId, createdBy, expiresAt — knowing the code is the grant
@@ -65,6 +69,7 @@ class SharedVehicleRepository @Inject constructor(
                 "name" to name,
                 "ownerUid" to user.uid,
                 "memberUids" to listOf(user.uid),
+                "memberNames" to mapOf(user.uid to user.displayName),
                 "createdAt" to FieldValue.serverTimestamp()
             )
         ).await()
@@ -105,6 +110,7 @@ class SharedVehicleRepository @Inject constructor(
                 "joinCode" to code
             )
         ).await()
+        publishMyName(cloudId)
 
         val vehicle = vehicleRef(cloudId).get().await()
         return JoinedVehicle(cloudId = cloudId, name = vehicle.getString("name") ?: "רכב משותף")
@@ -122,6 +128,10 @@ class SharedVehicleRepository @Inject constructor(
         @Suppress("UNCHECKED_CAST")
         val members = snapshot.get("memberUids") as? List<String> ?: emptyList()
 
+        // Names go first: once out of memberUids the rules no longer let us touch the car.
+        runCatching {
+            ref.update(FieldPath.of("memberNames", user.uid), FieldValue.delete()).await()
+        }
         if (members.all { it == user.uid }) {
             deleteParkings(cloudId, olderThan = Long.MAX_VALUE)
             deleteReservations(cloudId, endedBefore = Long.MAX_VALUE)
@@ -129,6 +139,52 @@ class SharedVehicleRepository @Inject constructor(
         } else {
             ref.update("memberUids", FieldValue.arrayRemove(user.uid)).await()
         }
+    }
+
+    /**
+     * Writes the signed-in user's name into the car's member list (if it isn't there already), so
+     * the others see who they share it with. Best effort, in its own write: an older deployment of the rules rejects it,
+     * and that must not fail the join itself.
+     */
+    suspend fun publishMyName(cloudId: String) {
+        val user = authRepository.currentUserNow() ?: return
+        runCatching {
+            val ref = vehicleRef(cloudId)
+            val current = ref.get().await().get(FieldPath.of("memberNames", user.uid)) as? String
+            if (current != user.displayName) {
+                ref.update(FieldPath.of("memberNames", user.uid), user.displayName).await()
+            }
+        }.onFailure { Log.w(TAG, "Could not publish member name for $cloudId", it) }
+    }
+
+    /** Live list of the car's members, owner first, then by name. Ends with an empty list on losing access. */
+    fun observeMembers(cloudId: String): Flow<List<VehicleMember>> = callbackFlow {
+        val me = authRepository.currentUserNow()
+        val registration = vehicleRef(cloudId).addSnapshotListener { snapshot, error ->
+            if (error != null || snapshot == null || !snapshot.exists()) {
+                if (error != null) Log.w(TAG, "Member listener for $cloudId stopped", error)
+                trySend(emptyList())
+                close()
+                return@addSnapshotListener
+            }
+            @Suppress("UNCHECKED_CAST")
+            val uids = snapshot.get("memberUids") as? List<String> ?: emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val names = snapshot.get("memberNames") as? Map<String, Any?> ?: emptyMap()
+            val ownerUid = snapshot.getString("ownerUid")
+            val members = uids.distinct().map { uid ->
+                VehicleMember(
+                    uid = uid,
+                    // Our own name is known locally even before it reaches the cloud.
+                    name = (names[uid] as? String)?.takeIf { it.isNotBlank() }
+                        ?: me?.displayName?.takeIf { uid == me.uid },
+                    isOwner = uid == ownerUid,
+                    isMe = uid == me?.uid
+                )
+            }
+            trySend(members.sortedWith(compareByDescending<VehicleMember> { it.isOwner }.thenBy { it.name ?: "￿" }))
+        }
+        awaitClose { registration.remove() }
     }
 
     suspend fun uploadParking(cloudId: String, parking: CloudParking) {

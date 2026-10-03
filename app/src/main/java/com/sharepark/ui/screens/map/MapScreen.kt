@@ -10,6 +10,12 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.animate
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +26,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,6 +39,7 @@ import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
@@ -52,6 +61,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -60,9 +71,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sharepark.R
@@ -91,6 +105,7 @@ import com.sharepark.ui.components.StatItem
 import com.sharepark.ui.components.rememberBreathingScale
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @Composable
 fun MapScreen(
@@ -282,18 +297,52 @@ fun MapContent(
                 )
             }
 
-            // Bottom sheet with the parking details
+            // Bottom sheet with the parking details. Swiping it down hands the whole screen to
+            // the map; the peek bar left at the bottom brings it back (swipe up or tap).
+            var sheetHeight by remember { mutableIntStateOf(0) }
+            var sheetOffset by remember { mutableFloatStateOf(0f) }
+            LaunchedEffect(isFullScreen) { if (!isFullScreen) sheetOffset = 0f }
+
             AnimatedVisibility(
                 visible = !isFullScreen,
-                enter = fadeIn(),
-                exit = fadeOut(),
+                enter = fadeIn() + slideInVertically { it },
+                exit = fadeOut() + slideOutVertically { it },
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 ParkingSheet(
                     parking = parking,
                     vehicleName = activeVehicleName ?: "הרכב שלי",
                     onShare = onShare,
-                    onNavigate = { onNavigate(parking.latitude, parking.longitude) }
+                    onNavigate = { onNavigate(parking.latitude, parking.longitude) },
+                    modifier = Modifier
+                        .onSizeChanged { sheetHeight = it.height }
+                        .offset { IntOffset(0, sheetOffset.roundToInt()) }
+                        .draggable(
+                            orientation = Orientation.Vertical,
+                            state = rememberDraggableState { delta ->
+                                sheetOffset = (sheetOffset + delta).coerceIn(0f, sheetHeight.toFloat())
+                            },
+                            onDragStopped = { velocity ->
+                                val collapse = sheetOffset > sheetHeight * COLLAPSE_FRACTION ||
+                                    velocity > FLING_VELOCITY
+                                val target = if (collapse) sheetHeight.toFloat() else 0f
+                                animate(sheetOffset, target) { value, _ -> sheetOffset = value }
+                                if (collapse) onToggleFullScreen()
+                            }
+                        )
+                )
+            }
+
+            AnimatedVisibility(
+                visible = isFullScreen,
+                enter = fadeIn() + slideInVertically { it },
+                exit = fadeOut() + slideOutVertically { it },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                CollapsedSheetBar(
+                    vehicleName = activeVehicleName ?: "הרכב שלי",
+                    address = parking.address,
+                    onExpand = onToggleFullScreen
                 )
             }
         } else {
@@ -343,15 +392,83 @@ fun MapContent(
     }
 }
 
+/** What's left of the parking sheet while the map is full screen. */
+@Composable
+private fun CollapsedSheetBar(
+    vehicleName: String,
+    address: String?,
+    onExpand: () -> Unit
+) {
+    var dragged by remember { mutableFloatStateOf(0f) }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onExpand)
+            .draggable(
+                orientation = Orientation.Vertical,
+                state = rememberDraggableState { delta -> dragged += delta },
+                onDragStarted = { dragged = 0f },
+                onDragStopped = { velocity ->
+                    if (dragged < -EXPAND_DRAG_PX || velocity < -FLING_VELOCITY) onExpand()
+                }
+            ),
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 12.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .navigationBarsPadding()
+                .padding(start = 24.dp, end = 24.dp, top = 10.dp, bottom = 14.dp)
+        ) {
+            SheetHandle(modifier = Modifier.align(Alignment.CenterHorizontally))
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.DirectionsCar,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(end = 10.dp)
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = vehicleName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    address?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowUp,
+                    contentDescription = "הצג פרטי חנייה",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun ParkingSheet(
     parking: ParkingRecord,
     vehicleName: String,
     onShare: () -> Unit,
-    onNavigate: () -> Unit
+    onNavigate: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 12.dp
@@ -436,6 +553,11 @@ private fun ParkingSheet(
         }
     }
 }
+
+// Sheet gestures: past this share of its height (or flung down) the sheet collapses.
+private const val COLLAPSE_FRACTION = 0.3f
+private const val FLING_VELOCITY = 1200f
+private const val EXPAND_DRAG_PX = 40f
 
 /** Elapsed time since [since] as a bold number + short Hebrew unit. */
 private fun elapsedSince(since: Long): Pair<String, String> {
